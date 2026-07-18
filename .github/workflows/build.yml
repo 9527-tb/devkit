@@ -1,14 +1,17 @@
 # 在 macOS / Windows / Linux 上分别打包，产物上传为 artifacts（不发 Release）。
 # 触发：手动 workflow_dispatch，或推送到主分支 / PR。
 # 本地脚本：pnpm tauri:build:ci / pnpm tauri:build:windows / pnpm tauri:build:linux
+#
+# 注意：CI Build 关闭 createUpdaterArtifacts（不需签名密钥）。
+# 带 .sig / latest.json 的发版走 Release workflow。
 name: Build Windows / macOS / Linux
 
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
+    branches: [main, master, develop]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, develop]
 
 jobs:
   build-tauri:
@@ -65,7 +68,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: ${{ matrix.args }}
+          # PR/日常构建不签名；避免缺 TAURI_SIGNING_PRIVATE_KEY 失败
+          args: >-
+            ${{ matrix.args }}
+            --config {"bundle":{"createUpdaterArtifacts":false}}
           projectPath: .
 
       - name: Upload bundles
