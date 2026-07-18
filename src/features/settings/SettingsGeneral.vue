@@ -51,10 +51,10 @@ function onCheckUpdateClick() {
             :key="item.id"
             type="button"
             class="theme-swatch"
-            :class="{ active: settings.general.theme === item.id }"
+            :class="[`theme-swatch--${item.id}`, { active: settings.general.theme === item.id }]"
             @click="onThemeChange(item.id)"
           >
-            <span class="theme-swatch-bar" :style="{ background: item.primary }" />
+            <span class="theme-swatch-bar" aria-hidden="true" />
             <span class="theme-swatch-name">{{ t(THEME_LABEL_KEYS[item.id]) }}</span>
           </button>
         </div>

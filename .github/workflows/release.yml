@@ -92,3 +92,24 @@ jobs:
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
+
+  # tauri-action@v1 写入的 api.github.com/assets/<id> 对公开客户端会 403，需改成 browser_download_url
+  fix-updater-json:
+    needs: publish-tauri
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rewrite latest.json asset URLs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
+          fi
+          echo "Fixing latest.json on $TAG"
+          node scripts/fix-latest-json.mjs "$TAG"

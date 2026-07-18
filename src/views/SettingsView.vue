@@ -15,6 +15,7 @@ import SettingsToolchain from "../features/settings/SettingsToolchain.vue";
 
 // TODO(fe-settings-view): DONE — 从 App.vue 迁出设置页布局与导航切换 — DESIGN §12.2
 
+const appLogo = "/logo.png";
 const t = createTranslator(locale);
 const { closeSettings } = useSettings();
 
@@ -25,7 +26,7 @@ const showGeneral = computed(() => settingsCat.value === "general");
   <a-config-provider component-size="small">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">D</div>
+        <img class="brand-mark" :src="appLogo" alt="" />
         <div class="brand-text">
           <span>{{ t("settings") }}</span>
           <small>{{ t("settingsFile") }}</small>
@@ -64,14 +65,19 @@ const showGeneral = computed(() => settingsCat.value === "general");
 @media (max-width: 900px) {
   .theme-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* macOS WKWebView：button 内空 span + 内联 background 常不绘色，改用 class + background-color */
 .theme-swatch {
+  -webkit-appearance: none;
+  appearance: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 8px;
   border-radius: var(--radius);
   border: 1px solid var(--line);
-  background: var(--surface-muted);
+  background-color: var(--surface-muted);
+  color: inherit;
+  font: inherit;
   cursor: pointer;
   text-align: left;
 }
@@ -79,13 +85,24 @@ const showGeneral = computed(() => settingsCat.value === "general");
 .theme-swatch.active {
   border-color: var(--teal);
   box-shadow: 0 0 0 1px var(--teal);
-  background: var(--teal-soft);
+  background-color: var(--teal-soft);
 }
 .theme-swatch-bar {
   display: block;
+  width: 100%;
   height: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
   border-radius: var(--radius);
+  background-color: #999;
 }
+/* 与 themes/index.js THEME_OPTIONS[].primary 保持一致 */
+.theme-swatch--teal .theme-swatch-bar { background-color: #0f766e; }
+.theme-swatch--ocean .theme-swatch-bar { background-color: #0c6a8a; }
+.theme-swatch--forest .theme-swatch-bar { background-color: #3d6b4f; }
+.theme-swatch--slate .theme-swatch-bar { background-color: #4a5d6a; }
+.theme-swatch--amber .theme-swatch-bar { background-color: #b45309; }
+.theme-swatch--rose .theme-swatch-bar { background-color: #9f1239; }
 .theme-swatch-name {
   font-size: 11px;
   font-weight: 700;

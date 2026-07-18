@@ -10,8 +10,9 @@ import {
   EllipsisOutlined,
   ToolOutlined,
 } from "@antdv-next/icons";
-
 // DONE(fe-topbar-history): Compact + 历史 Dropdown — DESIGN §12.2
+
+const appLogo = "/logo.png";
 
 defineProps({
   t: { type: Function, required: true },
@@ -28,7 +29,7 @@ defineEmits(["choose-directory", "scan", "open-settings", "open-tools"]);
 <template>
   <header class="topbar">
     <div class="brand">
-      <div class="brand-mark">D</div>
+      <img class="brand-mark" :src="appLogo" alt="" />
       <div class="brand-text">
         <strong>{{ t("appName") }}</strong>
         <small>{{ t("appTagline") }}</small>

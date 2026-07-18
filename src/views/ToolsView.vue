@@ -12,6 +12,7 @@ import ToolsNav from "../features/tools/ToolsNav.vue";
 import { findTool } from "../features/tools/registry.js";
 import "../styles/settings-layout.css";
 
+const appLogo = "/logo.png";
 const t = createTranslator(locale);
 const { closeTools } = useTools();
 
@@ -22,7 +23,7 @@ const activeTool = computed(() => findTool(toolsCat.value));
   <a-config-provider component-size="small">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">D</div>
+        <img class="brand-mark" :src="appLogo" alt="" />
         <div class="brand-text">
           <span>{{ t("tools") }}</span>
           <small>{{ t("toolsSubtitle") }}</small>
