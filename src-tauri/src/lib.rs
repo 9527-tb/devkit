@@ -101,6 +101,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app_handle, event| {
+            // macOS：点击 Dock 图标时恢复主窗口（关闭到托盘后窗口已 hide）
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = &event {
+                tray::show_main_window(app_handle);
+            }
             // Cmd+Q / 系统退出：交给前端确认；exit_app(0) 带 code 时放行
             if let tauri::RunEvent::ExitRequested { api, code, .. } = &event {
                 if code.is_none() {
