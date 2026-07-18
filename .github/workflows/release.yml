@@ -1,10 +1,12 @@
 # 打 tag（v*）或手动触发：构建签名安装包并发布到 GitHub Release（含 latest.json）。
 # 需在仓库 Secrets 配置：
-#   TAURI_SIGNING_PRIVATE_KEY
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD（可选，密钥无密码可留空）
+#   TAURI_SIGNING_PRIVATE_KEY          （~/.tauri/devkit.key 全文）
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD （可选；无密码可不设）
 #
-# 客户端 endpoint 见 src-tauri/tauri.conf.json → plugins.updater.endpoints
-# （需与本仓库 OWNER/REPO 一致，默认 latest.json）
+# 客户端 endpoint：
+#   https://github.com/9527-tb/devkit/releases/latest/download/latest.json
+#
+# 注意：必须发布正式 Release（非 draft），否则 /releases/latest 不可用。
 name: Release
 
 on:
@@ -59,6 +61,15 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify updater signing key
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Missing secret TAURI_SIGNING_PRIVATE_KEY. Add the contents of ~/.tauri/devkit.key in repo Settings → Secrets."
+            exit 1
+          fi
+
       - name: Build and publish
         uses: tauri-apps/tauri-action@v1
         env:
@@ -70,9 +81,12 @@ jobs:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v__VERSION__' }}
           releaseName: DevKit v__VERSION__
           releaseBody: |
-            DevKit release. Installers and updater artifacts are attached.
-            Updater manifest: `latest.json`
-          releaseDraft: true
+            ## DevKit v__VERSION__
+
+            Installers and updater artifacts are attached.
+            App updater reads `latest.json` from this release.
+          # 正式发布（非 draft），否则客户端 /releases/latest/download/latest.json 无法访问
+          releaseDraft: false
           prerelease: false
           uploadUpdaterJson: true
           updaterJsonPreferNsis: true

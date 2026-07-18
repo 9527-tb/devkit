@@ -1,7 +1,7 @@
 {
   "name": "devkit",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "tauri:build:windows": "node scripts/tauri-build.mjs windows",
     "tauri:build:linux": "node scripts/tauri-build.mjs linux",
     "tauri:build:all": "node scripts/tauri-build.mjs all",
-    "tauri:build:ci": "node scripts/tauri-build.mjs ci"
+    "tauri:build:ci": "node scripts/tauri-build.mjs ci",
+    "version:sync": "node scripts/sync-version.mjs"
   },
   "dependencies": {
     "@antdv-next/icons": "^1.1.1",

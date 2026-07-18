@@ -15,6 +15,8 @@ import { locale, previewMode, settings } from "../../stores/settings.js";
 const t = createTranslator(locale);
 
 const STARTUP_DELAY_MS = 3000;
+/** Vite / tauri dev：静默检查无意义（endpoint 常 404），仅手动检查 */
+const IS_DEV = !!import.meta.env.DEV;
 
 export function useAppUpdate() {
   const updateOpen = ref(false);
@@ -73,15 +75,31 @@ export function useAppUpdate() {
       updateOpen.value = true;
       return true;
     } catch (error) {
+      const raw = String(error || "");
+      const friendly = friendlyUpdateError(raw);
       if (!silent) {
-        message.error(t("updateCheckFail", { error: String(error) }));
+        message.error(t("updateCheckFail", { error: friendly }));
       } else {
-        console.warn("[update] silent check failed", error);
+        console.warn("[update] silent check failed", raw);
       }
       return false;
     } finally {
       checking.value = false;
     }
+  }
+
+  function friendlyUpdateError(raw) {
+    const s = String(raw || "");
+    if (/404|Not Found|Could not fetch/i.test(s)) {
+      return t("updateCheckNoRelease");
+    }
+    if (/signature|verify|pubkey|minisign/i.test(s)) {
+      return t("updateCheckBadSignature");
+    }
+    if (/network|fetch|timed out|timeout|dns/i.test(s)) {
+      return t("updateCheckNetwork");
+    }
+    return s;
   }
 
   function dismissUpdate() {
@@ -138,7 +156,7 @@ export function useAppUpdate() {
   }
 
   function scheduleStartupCheck() {
-    if (!isTauri || previewMode.value) return;
+    if (!isTauri || previewMode.value || IS_DEV) return;
     if (startupTimer) clearTimeout(startupTimer);
     startupTimer = setTimeout(() => {
       startupTimer = null;
