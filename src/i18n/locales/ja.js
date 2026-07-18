@@ -74,7 +74,7 @@ export default {
   "closeToTray": "閉じるときトレイに最小化",
   "closeToTrayHint": "オン：閉じるでトレイへ。オフ：終了。トレイアイコンをクリックで主画面を表示",
   "autoCheckUpdate": "起動時に更新を確認",
-  "autoCheckUpdateHint": "起動数秒後に確認し、新版があれば設定アイコンと「更新を確認」に赤点を表示",
+  "autoCheckUpdateHint": "起動後に確認し、新版があればダイアログと設定／更新確認の赤点で通知",
   "appVersion": "バージョン",
   "appVersionHint": "インストール済み {version}",
   "checkForUpdate": "更新を確認",

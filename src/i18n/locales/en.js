@@ -74,7 +74,7 @@ export default {
   "closeToTray": "Minimize to tray on close",
   "closeToTrayHint": "When on, the close button hides to the tray; when off, it quits. Click the tray icon to show the window",
   "autoCheckUpdate": "Check for updates on launch",
-  "autoCheckUpdateHint": "Checks a few seconds after launch; shows a red badge on Settings and Check for updates",
+  "autoCheckUpdateHint": "Checks after launch; prompts when an update is available and shows a red badge on Settings / Check for updates",
   "appVersion": "Version",
   "appVersionHint": "Installed version {version}",
   "checkForUpdate": "Check for updates",
