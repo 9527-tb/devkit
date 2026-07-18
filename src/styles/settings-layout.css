@@ -1,0 +1,127 @@
+/* 设置 / 工具等全屏配置页共用布局（左导航 + 右主区） */
+
+.settings-top-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.settings-auto-tag {
+  margin: 0 !important;
+  border-radius: var(--radius);
+  font-weight: 600;
+  line-height: 20px;
+}
+.settings-layout {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(160px, 200px) minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+.settings-nav {
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  border-right: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+.settings-nav-item {
+  width: 100%;
+  display: block;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 2px;
+}
+.settings-nav-item:hover { background: var(--nav-hover); }
+.settings-nav-item.active {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.settings-main-spin {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+.settings-main-spin .ant-spin-container {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+.settings-main {
+  width: 100%;
+  max-width: none;
+  padding: 12px 14px 16px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+.settings-panel {
+  width: 100%;
+}
+.settings-panel h2 {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.settings-desc {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.cfg-group {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.cfg-group-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--surface-tint);
+}
+.cfg-group-h b { font-size: 12px; }
+.cfg-group-h span {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+.cfg-group-b { padding: 10px; }
+.cfg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cfg-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+.cfg-hint {
+  margin-top: 2px;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}

@@ -1,0 +1,261 @@
+/**
+ * 内置主题色板与 DOM CSS 变量应用。
+ * 依赖：无；被 stores/settings、App 壳使用。
+ * 对应 DESIGN.md §12.2 themes/
+ */
+
+// TODO(fe-theme-apply): ConfigProvider token 仍由 App 壳提供 — DESIGN §12.2
+
+/** 全局圆角（px）；CSS 对应 :root --radius */
+export const BORDER_RADIUS_PX = 3;
+
+/** i18n 键名映射（主题 id → 文案 key） */
+export const THEME_LABEL_KEYS = {
+  teal: "themeTeal",
+  ocean: "themeOcean",
+  forest: "themeForest",
+  slate: "themeSlate",
+  amber: "themeAmber",
+  rose: "themeRose",
+};
+
+/** 六套内置配色主题 */
+
+function pack({
+  id,
+  primary,
+  soft,
+  running,
+  mid,
+  bgWashA,
+  bgWashB,
+  bg,
+  line,
+  lineSoft,
+  lineHover,
+  surfaceTint,
+  surfaceMuted,
+  surfaceHover,
+  surfaceSelected,
+  chipBg,
+  inputBg,
+  navHover,
+  ink,
+  inkStrong,
+  inkSoft,
+  muted,
+}) {
+  return {
+    id,
+    primary,
+    soft,
+    running,
+    mid,
+    bgWashA,
+    bgWashB,
+    bg,
+    line,
+    lineSoft,
+    lineHover,
+    surfaceTint,
+    surfaceMuted,
+    surfaceHover,
+    surfaceSelected,
+    chipBg,
+    inputBg,
+    navHover,
+    ink,
+    inkStrong,
+    inkSoft,
+    muted,
+  };
+}
+
+export const THEME_OPTIONS = [
+  pack({
+    id: "teal",
+    primary: "#0f766e",
+    soft: "#e8f5f2",
+    running: "#149a6a",
+    mid: "#1a8f84",
+    bgWashA: "#d7ebe6",
+    bgWashB: "#e7efe8",
+    bg: "#eef2f1",
+    line: "#d7e0dc",
+    lineSoft: "#eef3f0",
+    lineHover: "#b9cdc5",
+    surfaceTint: "#e8efec",
+    surfaceMuted: "#f5f7f6",
+    surfaceHover: "#f3f7f5",
+    surfaceSelected: "#e8f4ef",
+    chipBg: "#dce8e3",
+    inputBg: "#f4f8f6",
+    navHover: "#e8f1ed",
+    ink: "#15201e",
+    inkStrong: "#24322e",
+    inkSoft: "#30433e",
+    muted: "#6b7a76",
+  }),
+  pack({
+    id: "ocean",
+    primary: "#0c6a8a",
+    soft: "#e6f3f8",
+    running: "#0891b2",
+    mid: "#0e7490",
+    bgWashA: "#d5eaf3",
+    bgWashB: "#e4eef5",
+    bg: "#eef2f5",
+    line: "#d5e0e8",
+    lineSoft: "#eef3f6",
+    lineHover: "#b5c9d6",
+    surfaceTint: "#e6eef3",
+    surfaceMuted: "#f4f7f9",
+    surfaceHover: "#eef4f7",
+    surfaceSelected: "#e4f1f6",
+    chipBg: "#d8e6ee",
+    inputBg: "#f2f6f9",
+    navHover: "#e5f0f5",
+    ink: "#142028",
+    inkStrong: "#223240",
+    inkSoft: "#30404e",
+    muted: "#657682",
+  }),
+  pack({
+    id: "forest",
+    primary: "#3d6b4f",
+    soft: "#e8f1eb",
+    running: "#2f8f5b",
+    mid: "#4a7c59",
+    bgWashA: "#d9e8de",
+    bgWashB: "#e6efe8",
+    bg: "#eef2ef",
+    line: "#d5e0d8",
+    lineSoft: "#eef3f0",
+    lineHover: "#b7c9bc",
+    surfaceTint: "#e7efe9",
+    surfaceMuted: "#f5f8f6",
+    surfaceHover: "#f1f6f3",
+    surfaceSelected: "#e6f2ea",
+    chipBg: "#d9e6dd",
+    inputBg: "#f3f7f4",
+    navHover: "#e7f0ea",
+    ink: "#152018",
+    inkStrong: "#243328",
+    inkSoft: "#304338",
+    muted: "#66786c",
+  }),
+  pack({
+    id: "slate",
+    primary: "#4a5d6a",
+    soft: "#e8eef2",
+    running: "#0d9488",
+    mid: "#5b6f7c",
+    bgWashA: "#dce4ea",
+    bgWashB: "#e8eef2",
+    bg: "#eef1f3",
+    line: "#d7dde2",
+    lineSoft: "#eef1f3",
+    lineHover: "#b8c2cb",
+    surfaceTint: "#e8ecef",
+    surfaceMuted: "#f5f6f7",
+    surfaceHover: "#f1f3f5",
+    surfaceSelected: "#e7eef2",
+    chipBg: "#dde3e8",
+    inputBg: "#f3f5f7",
+    navHover: "#e8edf1",
+    ink: "#182025",
+    inkStrong: "#26323a",
+    inkSoft: "#334049",
+    muted: "#66727a",
+  }),
+  pack({
+    id: "amber",
+    primary: "#b45309",
+    soft: "#fef3e6",
+    running: "#ca8a04",
+    mid: "#c2410c",
+    bgWashA: "#f5e6d4",
+    bgWashB: "#efe8df",
+    bg: "#f3efe9",
+    line: "#e2d8cb",
+    lineSoft: "#f3eee7",
+    lineHover: "#cfc0ad",
+    surfaceTint: "#efe8df",
+    surfaceMuted: "#f8f5f1",
+    surfaceHover: "#f4efe8",
+    surfaceSelected: "#f5ebe0",
+    chipBg: "#e8ddd0",
+    inputBg: "#f6f1ea",
+    navHover: "#f0e8de",
+    ink: "#231910",
+    inkStrong: "#3a2a1c",
+    inkSoft: "#4a3828",
+    muted: "#7a6a58",
+  }),
+  pack({
+    id: "rose",
+    primary: "#9f1239",
+    soft: "#fce8ef",
+    running: "#be123c",
+    mid: "#be185d",
+    bgWashA: "#f3d9e2",
+    bgWashB: "#efe6ea",
+    bg: "#f3eef0",
+    line: "#e2d5da",
+    lineSoft: "#f3eef1",
+    lineHover: "#cfc0c7",
+    surfaceTint: "#efe6ea",
+    surfaceMuted: "#f8f4f6",
+    surfaceHover: "#f4eef1",
+    surfaceSelected: "#f5e6ec",
+    chipBg: "#e8d8df",
+    inputBg: "#f6f1f3",
+    navHover: "#f0e6eb",
+    ink: "#241418",
+    inkStrong: "#3a2228",
+    inkSoft: "#4a3038",
+    muted: "#7a646c",
+  }),
+];
+
+export function getTheme(id) {
+  return THEME_OPTIONS.find((t) => t.id === id) || THEME_OPTIONS[0];
+}
+
+/** Apply all theme tokens to :root so surfaces/borders follow the accent hue */
+export function applyThemeToDocument(id) {
+  const t = getTheme(id);
+  const root = document.documentElement;
+  root.dataset.theme = t.id;
+
+  const map = {
+    "--teal": t.primary,
+    "--color-primary": t.primary,
+    "--running": t.running,
+    "--teal-soft": t.soft,
+    "--teal-mid": t.mid,
+    "--bg-wash-a": t.bgWashA,
+    "--bg-wash-b": t.bgWashB,
+    "--bg": t.bg,
+    "--line": t.line,
+    "--line-soft": t.lineSoft,
+    "--line-hover": t.lineHover,
+    "--surface-tint": t.surfaceTint,
+    "--surface-muted": t.surfaceMuted,
+    "--surface-hover": t.surfaceHover,
+    "--surface-selected": t.surfaceSelected,
+    "--chip-bg": t.chipBg,
+    "--input-bg": t.inputBg,
+    "--nav-hover": t.navHover,
+    "--ink": t.ink,
+    "--ink-strong": t.inkStrong,
+    "--ink-soft": t.inkSoft,
+    "--muted": t.muted,
+  };
+
+  for (const [key, value] of Object.entries(map)) {
+    root.style.setProperty(key, value);
+  }
+
+  root.style.setProperty("--radius", `${BORDER_RADIUS_PX}px`);
+}

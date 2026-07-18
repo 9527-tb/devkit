@@ -1,0 +1,35 @@
+{
+  "name": "devkit",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:build": "node scripts/tauri-build.mjs current",
+    "tauri:build:mac": "node scripts/tauri-build.mjs mac",
+    "tauri:build:mac-intel": "node scripts/tauri-build.mjs mac-intel",
+    "tauri:build:windows": "node scripts/tauri-build.mjs windows",
+    "tauri:build:linux": "node scripts/tauri-build.mjs linux",
+    "tauri:build:all": "node scripts/tauri-build.mjs all",
+    "tauri:build:ci": "node scripts/tauri-build.mjs ci"
+  },
+  "dependencies": {
+    "@antdv-next/icons": "^1.1.1",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "^2",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-process": "^2",
+    "@tauri-apps/plugin-updater": "^2",
+    "antdv-next": "^1.4.3",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.3"
+  }
+}

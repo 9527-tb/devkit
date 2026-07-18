@@ -1,0 +1,351 @@
+/* Workbench 样式（自 WorkbenchView 抽出以满足体量门禁） */
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap");
+
+:root {
+  --bg: #eef2f1;
+  --panel: #ffffff;
+  --ink: #15201e;
+  --ink-strong: #24322e;
+  --ink-soft: #30433e;
+  --muted: #6b7a76;
+  --line: #d7e0dc;
+  --line-soft: #eef3f0;
+  --line-hover: #b9cdc5;
+  --teal: #0f766e;
+  --teal-soft: #e8f5f2;
+  --teal-mid: #1a8f84;
+  --running: #149a6a;
+  --bg-wash-a: #d7ebe6;
+  --bg-wash-b: #e7efe8;
+  --surface-tint: #e8efec;
+  --surface-muted: #f5f7f6;
+  --surface-hover: #f3f7f5;
+  --surface-selected: #e8f4ef;
+  --chip-bg: #dce8e3;
+  --input-bg: #f4f8f6;
+  --nav-hover: #e8f1ed;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body,
+#app {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 420px at 8% -12%, var(--bg-wash-a) 0%, transparent 55%),
+    radial-gradient(700px 360px at 100% 0%, var(--bg-wash-b) 0%, transparent 50%),
+    var(--bg);
+  font-family: "IBM Plex Sans", "Noto Sans SC", system-ui, sans-serif;
+}
+
+.app-shell {
+  height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workbench {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.topbar {
+  position: relative;
+  z-index: 50;
+  flex: none;
+  height: 48px;
+  padding: 0 8px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, white);
+  backdrop-filter: blur(12px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  color: white;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: linear-gradient(145deg, var(--teal), var(--teal-mid));
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+
+.brand-text strong {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.brand-text small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.workspace-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.workspace-picker .ant-space-compact {
+  flex: none;
+}
+.workspace-history-dropdown {
+  z-index: 3100 !important;
+}
+.workspace-history-dropdown .ant-dropdown-menu {
+  max-width: min(420px, 80vw);
+  max-height: min(360px, 60vh);
+  overflow: auto;
+}
+
+.path-chip {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--ink-soft);
+}
+.path-chip-icon {
+  flex: none;
+  opacity: 0.55;
+  font-size: 14px;
+}
+.path-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.settings-icon-btn {
+  width: 32px !important;
+  padding: 0 !important;
+  justify-content: center;
+}
+
+/* 侧栏 + 主区（Tab 在主区顶部，不对齐顶栏通栏） */
+.body {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  overflow: hidden;
+}
+
+.main {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.main-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.main-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panels {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.tabs {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--line);
+  margin: 0;
+}
+.tab-list {
+  display: flex;
+  gap: 2px;
+}
+.tab-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.log-wrap-check {
+  font-size: 12px;
+  color: var(--muted);
+}
+.panel-tool-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--teal);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tab {
+  border: 0;
+  background: transparent;
+  position: relative;
+  padding: 5px 11px;
+  border-radius: var(--radius);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.tab:hover {
+  color: var(--ink);
+  background: var(--surface-hover);
+}
+.tab.active {
+  color: var(--teal);
+  background: var(--teal-soft);
+}
+
+.console {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #1f2a28;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #111a18;
+  color: #d5e3dd;
+}
+.console-bar {
+  flex: none;
+  height: 32px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #1a2623;
+  color: #aebdb7;
+  font-size: 12px;
+}
+.console-body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+.console-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.console-hint {
+  font-size: 11px;
+  color: #7f908a;
+}
+.console-log {
+  margin: 0;
+  padding: 10px 12px;
+  color: #d5e3dd;
+  font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+  word-break: normal;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+}
+.console-log.wrap {
+  white-space: pre-wrap;
+  word-break: break-word;
+  width: auto;
+  min-width: 0;
+}
+.console-log .log-link {
+  color: #5eead4;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.console-log .log-link:hover {
+  color: #99f6e4;
+}
+.muted {
+  min-height: 120px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .body { grid-template-columns: 210px 1fr; }
+  .brand-text small { display: none; }
+  .workspace-picker .label { display: none; }
+}
