@@ -25,6 +25,7 @@ const {
 
 const appUpdate = inject("appUpdate", null);
 const updateChecking = computed(() => !!appUpdate?.checking?.value);
+const updateAvailable = computed(() => !!appUpdate?.updateAvailable?.value);
 const appVersionLabel = computed(() => appUpdate?.appVersion?.value || "—");
 
 function onCheckUpdateClick() {
@@ -172,14 +173,16 @@ function onCheckUpdateClick() {
             <div class="cfg-label">{{ t("appVersion") }}</div>
             <div class="cfg-hint">{{ t("appVersionHint", { version: appVersionLabel }) }}</div>
           </div>
-          <a-button
-            size="small"
-            :loading="updateChecking"
-            :disabled="!appUpdate"
-            @click="onCheckUpdateClick"
-          >
-            {{ t("checkForUpdate") }}
-          </a-button>
+          <a-badge :dot="updateAvailable" :offset="[-2, 2]">
+            <a-button
+              size="small"
+              :loading="updateChecking"
+              :disabled="!appUpdate"
+              @click="onCheckUpdateClick"
+            >
+              {{ t("checkForUpdate") }}
+            </a-button>
+          </a-badge>
         </div>
       </div>
     </div>

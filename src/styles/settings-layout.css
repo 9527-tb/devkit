@@ -41,6 +41,13 @@
   cursor: pointer;
   margin-bottom: 2px;
 }
+.settings-nav-item .ant-badge {
+  width: 100%;
+}
+.settings-nav-item .ant-badge-status-dot,
+.settings-nav-item .ant-scroll-number.ant-badge-dot {
+  box-shadow: none;
+}
 .settings-nav-item:hover { background: var(--nav-hover); }
 .settings-nav-item.active {
   background: var(--teal-soft);

@@ -74,7 +74,7 @@ export default {
   "closeToTray": "閉じるときトレイに最小化",
   "closeToTrayHint": "オン：閉じるでトレイへ。オフ：終了。トレイアイコンをクリックで主画面を表示",
   "autoCheckUpdate": "起動時に更新を確認",
-  "autoCheckUpdateHint": "起動数秒後に GitHub Releases を静かに確認し、新版があれば通知",
+  "autoCheckUpdateHint": "起動数秒後に確認し、新版があれば設定アイコンと「更新を確認」に赤点を表示",
   "appVersion": "バージョン",
   "appVersionHint": "インストール済み {version}",
   "checkForUpdate": "更新を確認",

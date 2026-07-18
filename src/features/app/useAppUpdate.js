@@ -26,6 +26,8 @@ export function useAppUpdate() {
   const runningCount = ref(0);
   const checking = ref(false);
   const appVersion = ref("");
+  /** 发现可升级版本后保持 true（点「稍后」也不清除，用于齿轮 / 检查更新红点） */
+  const updateAvailable = ref(false);
 
   /** @type {import('@tauri-apps/plugin-updater').Update | null} */
   let pendingUpdate = null;
@@ -47,6 +49,14 @@ export function useAppUpdate() {
    * @param {{ silent?: boolean }} [opts]
    * @returns {Promise<boolean>} 是否发现更新
    */
+  async function refreshRunningCount() {
+    try {
+      runningCount.value = Number(await invokeSafe("count_running_processes")) || 0;
+    } catch {
+      runningCount.value = 0;
+    }
+  }
+
   async function checkForUpdate(opts = {}) {
     const silent = !!opts.silent;
     if (!isTauri || previewMode.value) {
@@ -54,24 +64,33 @@ export function useAppUpdate() {
       return false;
     }
     if (checking.value || downloading.value) return false;
+
+    // 已发现更新时，手动点「检查更新」直接再次打开对话框
+    if (!silent && pendingUpdate && updateAvailable.value) {
+      await refreshRunningCount();
+      updateOpen.value = true;
+      return true;
+    }
+
     checking.value = true;
     try {
       const update = await check();
       if (!update) {
+        updateAvailable.value = false;
+        pendingUpdate = null;
+        updateInfo.value = null;
         if (!silent) message.success(t("updateUpToDate"));
         return false;
       }
       pendingUpdate = update;
+      updateAvailable.value = true;
       updateInfo.value = {
         version: update.version,
         notes: update.body || "",
         date: update.date || "",
       };
-      try {
-        runningCount.value = Number(await invokeSafe("count_running_processes")) || 0;
-      } catch {
-        runningCount.value = 0;
-      }
+      await refreshRunningCount();
+      // 发现更新：亮红点；启动静默检查与手动检查都会弹出对话框
       updateOpen.value = true;
       return true;
     } catch (error) {
@@ -105,9 +124,8 @@ export function useAppUpdate() {
   function dismissUpdate() {
     if (downloading.value) return;
     updateOpen.value = false;
-    updateInfo.value = null;
-    pendingUpdate = null;
     downloadPercent.value = 0;
+    // 保留 pendingUpdate / updateAvailable，红点继续提示可升级
   }
 
   async function installUpdate() {
@@ -176,6 +194,7 @@ export function useAppUpdate() {
   return {
     updateOpen,
     updateInfo,
+    updateAvailable,
     downloading,
     downloadPercent,
     runningCount,

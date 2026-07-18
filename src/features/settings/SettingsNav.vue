@@ -4,7 +4,7 @@
   对应 DESIGN.md §12.2 SettingsNav
 -->
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, inject, onMounted, ref } from "vue";
 import { createTranslator } from "../../i18n/index.js";
 import { locale, settingsCat } from "../../stores/settings.js";
 import { invokeSafe } from "../../api/tauri.js";
@@ -13,6 +13,8 @@ import { invokeSafe } from "../../api/tauri.js";
 // DONE(fe-settings-toolchain-dynamic): 按 list_providers 动态段 — DESIGN R5
 
 const t = createTranslator(locale);
+const appUpdate = inject("appUpdate", null);
+const updateAvailable = computed(() => !!appUpdate?.updateAvailable?.value);
 
 const staticItems = [{ id: "general", labelKey: "navGeneral" }];
 
@@ -60,7 +62,12 @@ const navItems = computed(() => [...staticItems, ...toolchainItems.value]);
       :class="{ active: settingsCat === item.id }"
       @click="settingsCat = item.id"
     >
-      {{ t(item.labelKey) }}
+      <a-badge
+        :dot="item.id === 'general' && updateAvailable"
+        :offset="[6, 2]"
+      >
+        <span>{{ t(item.labelKey) }}</span>
+      </a-badge>
     </button>
   </aside>
 </template>

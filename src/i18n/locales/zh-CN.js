@@ -74,7 +74,7 @@ export default {
   "closeToTray": "关闭时最小化到托盘",
   "closeToTrayHint": "开启后点击关闭隐藏到托盘；关闭则直接退出。托盘图标可点开主界面",
   "autoCheckUpdate": "启动时检查更新",
-  "autoCheckUpdateHint": "启动数秒后静默检查 GitHub Release；有新版本再提示",
+  "autoCheckUpdateHint": "启动数秒后检查；有新版本时弹窗，并在设置齿轮与「检查更新」显示红点",
   "appVersion": "当前版本",
   "appVersionHint": "已安装版本 {version}",
   "checkForUpdate": "检查更新",

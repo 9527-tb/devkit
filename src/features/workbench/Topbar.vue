@@ -3,6 +3,7 @@
   对应 DESIGN.md §12.2 Topbar
 -->
 <script setup>
+import { computed, inject } from "vue";
 import {
   FolderOpenOutlined,
   ReloadOutlined,
@@ -13,6 +14,8 @@ import {
 // DONE(fe-topbar-history): Compact + 历史 Dropdown — DESIGN §12.2
 
 const appLogo = "/logo.png";
+const appUpdate = inject("appUpdate", null);
+const updateAvailable = computed(() => !!appUpdate?.updateAvailable?.value);
 
 defineProps({
   t: { type: Function, required: true },
@@ -74,13 +77,15 @@ defineEmits(["choose-directory", "scan", "open-settings", "open-tools"]);
       >
         <template #icon><ToolOutlined /></template>
       </a-button>
-      <a-button
-        class="settings-icon-btn"
-        :title="t('settings')"
-        @click="$emit('open-settings')"
-      >
-        <template #icon><SettingOutlined /></template>
-      </a-button>
+      <a-badge :dot="updateAvailable" :offset="[-4, 4]">
+        <a-button
+          class="settings-icon-btn"
+          :title="t('settings')"
+          @click="$emit('open-settings')"
+        >
+          <template #icon><SettingOutlined /></template>
+        </a-button>
+      </a-badge>
     </div>
   </header>
 </template>

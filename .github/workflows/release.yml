@@ -113,3 +113,21 @@ jobs:
           fi
           echo "Fixing latest.json on $TAG"
           node scripts/fix-latest-json.mjs "$TAG"
+          # 清理历史误上传的文件名（旧脚本曾传成 devkit-latest-<tag>.json）
+          gh release delete-asset "$TAG" "devkit-latest-${TAG}.json" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+          # 公开 CDN 可能短暂缓存旧内容，重试抽查
+          ok=0
+          for i in 1 2 3 4 5 6; do
+            body=$(curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/latest.json" || true)
+            if [ -n "$body" ] && ! printf '%s' "$body" | grep -q 'api.github.com/repos/.*/releases/assets/'; then
+              ok=1
+              break
+            fi
+            echo "CDN not ready (attempt $i), sleeping..."
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::latest.json still contains api.github.com asset URLs on public CDN"
+            exit 1
+          fi
+          echo "Verified browser download URLs in latest.json"

@@ -74,7 +74,7 @@ export default {
   "closeToTray": "關閉時最小化到系統匣",
   "closeToTrayHint": "開啟後點擊關閉會隱藏到系統匣；關閉則直接結束。點系統匣圖示可顯示主介面",
   "autoCheckUpdate": "啟動時檢查更新",
-  "autoCheckUpdateHint": "啟動數秒後靜默檢查 GitHub Release；有新版本再提示",
+  "autoCheckUpdateHint": "啟動數秒後檢查；有新版本時彈窗，並在設定齒輪與「檢查更新」顯示紅點",
   "appVersion": "目前版本",
   "appVersionHint": "已安裝版本 {version}",
   "checkForUpdate": "檢查更新",

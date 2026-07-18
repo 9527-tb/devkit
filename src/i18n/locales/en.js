@@ -74,7 +74,7 @@ export default {
   "closeToTray": "Minimize to tray on close",
   "closeToTrayHint": "When on, the close button hides to the tray; when off, it quits. Click the tray icon to show the window",
   "autoCheckUpdate": "Check for updates on launch",
-  "autoCheckUpdateHint": "Silently checks GitHub Releases a few seconds after launch",
+  "autoCheckUpdateHint": "Checks a few seconds after launch; shows a red badge on Settings and Check for updates",
   "appVersion": "Version",
   "appVersionHint": "Installed version {version}",
   "checkForUpdate": "Check for updates",

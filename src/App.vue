@@ -41,6 +41,7 @@ const {
 const {
   updateOpen,
   updateInfo,
+  updateAvailable,
   downloading,
   downloadPercent,
   runningCount: updateRunningCount,
@@ -55,6 +56,7 @@ provide("appUpdate", {
   checkForUpdate,
   checking: updateChecking,
   appVersion,
+  updateAvailable,
 });
 watchLogWrapSync();
 
