@@ -1,4 +1,4 @@
-//! Node 项目识别（package.json）。
+//! Node 项目识别（有效 package.json）。
 //!
 //! DONE(rs-provider-node): detect/enrich 已从 scan.rs 迁入 — DESIGN §6.5
 
@@ -29,8 +29,9 @@ impl ProjectDetector for NodeDetector {
     }
 }
 
+/// 目录是否为可运行的 Node 项目根（非 uni_modules 插件、非仅有 id 的组件 manifest）。
 pub fn looks_like_node(dir: &Path) -> bool {
-    dir.join("package.json").is_file()
+    parse_node_package(&dir.join("package.json")).is_some()
 }
 
 fn read_json(path: &Path) -> Option<Value> {
@@ -39,13 +40,37 @@ fn read_json(path: &Path) -> Option<Value> {
         .and_then(|v| serde_json::from_str(&v).ok())
 }
 
-/// 从目录构造 Node Project DTO。
-pub fn node_project(path: &Path) -> Option<Project> {
-    let package = path.join("package.json");
-    if !package.is_file() {
+/// 解析并校验 package.json；无效则 None。
+fn parse_node_package(path: &Path) -> Option<Value> {
+    if !path.is_file() {
         return None;
     }
-    let json = read_json(&package)?;
+    let json = read_json(path)?;
+    // uni-app 插件市场组件（通常在 uni_modules 内）
+    if json.get("dcloudext").is_some() {
+        return None;
+    }
+    if json
+        .get("uni_modules")
+        .and_then(|v| v.get("platforms"))
+        .is_some()
+    {
+        return None;
+    }
+    // 常规 npm 项目必须有非空 name
+    if !json
+        .get("name")
+        .and_then(|v| v.as_str())
+        .is_some_and(|s| !s.trim().is_empty())
+    {
+        return None;
+    }
+    Some(json)
+}
+
+/// 从目录构造 Node Project DTO。
+pub fn node_project(path: &Path) -> Option<Project> {
+    let json = parse_node_package(&path.join("package.json"))?;
     let mut scripts = json
         .get("scripts")
         .and_then(|v| v.as_object())
@@ -72,4 +97,49 @@ pub fn node_project(path: &Path) -> Option<Project> {
         scripts,
         dependencies: deps::dependency_tree(&json),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn temp_dir(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("devkit-node-detect-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn accepts_valid_npm_project() {
+        let dir = temp_dir("valid");
+        fs::write(
+            dir.join("package.json"),
+            r#"{"name":"demo","scripts":{"start":"vite"}}"#,
+        )
+        .unwrap();
+        assert!(looks_like_node(&dir));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rejects_uni_module_manifest() {
+        let dir = temp_dir("uni-mod");
+        fs::write(
+            dir.join("package.json"),
+            r#"{"id":"mp-html","dcloudext":{},"uni_modules":{"platforms":{}}}"#,
+        )
+        .unwrap();
+        assert!(!looks_like_node(&dir));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rejects_package_without_name() {
+        let dir = temp_dir("noname");
+        fs::write(dir.join("package.json"), r#"{"version":"1.0.0"}"#).unwrap();
+        assert!(!looks_like_node(&dir));
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

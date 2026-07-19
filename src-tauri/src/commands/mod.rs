@@ -1,18 +1,17 @@
 //! Tauri IPC 薄封装层。
 //!
-//! 对应 DESIGN.md §12.3：commands 只做参数校验与转发，业务在 core/providers/process/settings。
+//! 约定：本模块只做参数转发与类型映射，业务逻辑在 `core` / `providers` /
+//! `process` / `settings` 等子模块。前端通过 `@tauri-apps/api` 调用此处注册的 command。
 //!
 //! TODO(rs-commands-thin): 拆为 projects/process/settings/capabilities 子模块 — DESIGN R2
 //! TODO(rs-capabilities): get_capabilities 完整 Capability 合并 — DESIGN §8.1
-//! TODO(chore-dead-code): 确认无残留旧 invoke 路径 — DESIGN 清理门禁
 
 use crate::core::caps;
 use crate::core::registry::ProviderRegistry;
 use crate::core::scan_engine;
 use crate::deploy::targets::ssh::{SshUploadRequest, SshUploadResult};
 use crate::models::{
-    ActionPrefs, Dependency, GitStatus, HealthReport, HttpProbeResult, OutdatedDependency,
-    PipelineStep, ProcessView, Project, RunSummary,
+    ActionPrefs, Dependency, GitStatus, HealthReport, OutdatedDependency, ProcessView, Project,
 };
 use crate::workspace_config::WorkspaceConfig;
 use crate::process::{self, AppState};
@@ -22,11 +21,15 @@ use std::collections::HashMap;
 use std::path::Path;
 use tauri::{AppHandle, State};
 
+// ── 工作区扫描 ──────────────────────────────────────────────
+
 #[tauri::command]
 pub fn scan_projects(root: String) -> Result<Vec<Project>, String> {
     // 经 scan_engine 转发，R2 完全迁入后删除对 scan 的直接依赖
     crate::core::scan_engine::scan_workspace(root)
 }
+
+// ── 进程 / 日志 ─────────────────────────────────────────────
 
 #[tauri::command]
 pub fn run_action(
@@ -106,24 +109,7 @@ pub fn clear_logs(state: State<AppState>, path: String, kind: String) -> Result<
     process::clear_logs(state.inner(), path, kind)
 }
 
-#[tauri::command]
-pub fn get_last_run_summary(
-    state: State<AppState>,
-    project_key: String,
-) -> Option<RunSummary> {
-    process::get_last_run_summary(state.inner(), project_key)
-}
-
-#[tauri::command]
-pub fn run_pipeline(
-    app: AppHandle,
-    state: State<AppState>,
-    path: String,
-    kind: String,
-    steps: Vec<PipelineStep>,
-) -> Result<Vec<RunSummary>, String> {
-    process::run_pipeline(app, state.inner(), path, kind, steps)
-}
+// ── 工作区健康 / 外部工具 ───────────────────────────────────
 
 #[tauri::command]
 pub fn workspace_health_check(
@@ -173,10 +159,7 @@ pub fn workspace_git_status(root: String) -> GitStatus {
     crate::platform::workspace_git_status(&root)
 }
 
-#[tauri::command]
-pub fn probe_http(url: String, timeout_ms: Option<u64>) -> HttpProbeResult {
-    crate::probe::probe_http(url, timeout_ms)
-}
+// ── 用户偏好 / 工作区配置 ───────────────────────────────────
 
 #[tauri::command]
 pub fn load_action_prefs() -> Result<ActionPrefs, String> {
@@ -202,6 +185,8 @@ pub fn save_workspace_config(root: String, config: WorkspaceConfig) -> Result<()
 pub fn deploy_ssh_upload(request: SshUploadRequest) -> SshUploadResult {
     crate::deploy::targets::ssh::ssh_upload(request)
 }
+
+// ── 依赖 / 运行时设置 / Provider ────────────────────────────
 
 #[tauri::command]
 pub fn check_outdated_deps(

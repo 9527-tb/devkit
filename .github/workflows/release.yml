@@ -93,7 +93,8 @@ jobs:
           updaterJsonPreferNsis: true
           args: ${{ matrix.args }}
 
-  # tauri-action@v1 写入的 api.github.com/assets/<id> 对公开客户端会 403，需改成 browser_download_url
+  # tauri-action 合并的 latest.json 可能缺平台或使用 api.github.com URL（公开客户端 403）。
+  # 按 Release 资产完整重建，URL 一律用 browser_download_url。
   fix-updater-json:
     needs: publish-tauri
     permissions:
@@ -102,7 +103,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rewrite latest.json asset URLs
+      - name: Rebuild latest.json from release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -111,23 +112,34 @@ jobs:
           else
             TAG=$(gh api "repos/${GITHUB_REPOSITORY}/releases/latest" --jq .tag_name)
           fi
-          echo "Fixing latest.json on $TAG"
-          node scripts/fix-latest-json.mjs "$TAG"
+          echo "Rebuilding latest.json on $TAG"
+          node scripts/rebuild-latest-json.mjs "$TAG"
           # 清理历史误上传的文件名（旧脚本曾传成 devkit-latest-<tag>.json）
           gh release delete-asset "$TAG" "devkit-latest-${TAG}.json" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
           # 公开 CDN 可能短暂缓存旧内容，重试抽查
           ok=0
           for i in 1 2 3 4 5 6; do
             body=$(curl -fsSL "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/latest.json" || true)
-            if [ -n "$body" ] && ! printf '%s' "$body" | grep -q 'api.github.com/repos/.*/releases/assets/'; then
-              ok=1
-              break
+            if [ -z "$body" ]; then
+              echo "CDN not ready (attempt $i), sleeping..."
+              sleep 5
+              continue
             fi
-            echo "CDN not ready (attempt $i), sleeping..."
-            sleep 5
+            if printf '%s' "$body" | grep -q 'api.github.com/repos/.*/releases/assets/'; then
+              echo "Still has API URLs (attempt $i), sleeping..."
+              sleep 5
+              continue
+            fi
+            if ! printf '%s' "$body" | grep -q '"darwin-aarch64"'; then
+              echo "Missing darwin-aarch64 (attempt $i), sleeping..."
+              sleep 5
+              continue
+            fi
+            ok=1
+            break
           done
           if [ "$ok" != "1" ]; then
-            echo "::error::latest.json still contains api.github.com asset URLs on public CDN"
+            echo "::error::latest.json invalid on public CDN (API URLs or missing darwin)"
             exit 1
           fi
-          echo "Verified browser download URLs in latest.json"
+          echo "Verified complete latest.json with browser download URLs"

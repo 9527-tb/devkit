@@ -228,17 +228,15 @@ const dependencyCount = computed(() => countDeps(dependencyTree.value));
 const refreshHealth = refreshWorkspaceHealth;
 
 function orderedActionsFor(project) {
+  // 最近使用的命令优先，其余按 Provider 默认顺序
   if (!project) return [];
   const all = projectActionKeys(project);
   const key = projectKey(project);
-  const pinned = (actionPrefs.value.pinnedByProjectKey[key] || []).filter((a) =>
+  const recent = (actionPrefs.value.recentByProjectKey[key] || []).filter((a) =>
     all.includes(a),
   );
-  const recent = (actionPrefs.value.recentByProjectKey[key] || []).filter(
-    (a) => all.includes(a) && !pinned.includes(a),
-  );
-  const rest = all.filter((a) => !pinned.includes(a) && !recent.includes(a));
-  return [...pinned, ...recent, ...rest];
+  const rest = all.filter((a) => !recent.includes(a));
+  return [...recent, ...rest];
 }
 
 const actionList = computed(() => orderedActionsFor(current.value));
@@ -274,40 +272,6 @@ function recordRecentAction(project, action) {
     },
   };
   saveActionPrefs();
-}
-
-function pinAction(project, action) {
-  const key = projectKey(project);
-  if (!key || !action) return;
-  const prev = actionPrefs.value.pinnedByProjectKey[key] || [];
-  if (prev.includes(action)) return;
-  actionPrefs.value = {
-    ...actionPrefs.value,
-    pinnedByProjectKey: {
-      ...actionPrefs.value.pinnedByProjectKey,
-      [key]: [...prev, action],
-    },
-  };
-  saveActionPrefs();
-}
-
-function unpinAction(project, action) {
-  const key = projectKey(project);
-  if (!key || !action) return;
-  const prev = actionPrefs.value.pinnedByProjectKey[key] || [];
-  actionPrefs.value = {
-    ...actionPrefs.value,
-    pinnedByProjectKey: {
-      ...actionPrefs.value.pinnedByProjectKey,
-      [key]: prev.filter((a) => a !== action),
-    },
-  };
-  saveActionPrefs();
-}
-
-function isPinnedAction(project, action) {
-  const key = projectKey(project);
-  return (actionPrefs.value.pinnedByProjectKey[key] || []).includes(action);
 }
 
 const refreshGitStatus = refreshWorkspaceGit;
@@ -428,6 +392,7 @@ async function onProjectMenuClick(project, info) {
   await run(project, key);
 }
 
+/** 统一路径键：去尾斜杠、Windows 反斜杠转 POSIX，供 projectKey 与 invoke 参数使用 */
 function normPath(path) {
   return normalizeProjectPath(path);
 }
@@ -1126,10 +1091,6 @@ onBeforeUnmount(() => {
     projectHealthItems,
     gitStatus,
     refreshGitStatus,
-    actionPrefs,
-    pinAction,
-    unpinAction,
-    isPinnedAction,
     openInEditor,
     openInTerminal,
     exportWorkspaceConfig,

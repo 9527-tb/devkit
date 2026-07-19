@@ -74,6 +74,7 @@ function metaText(project) {
       <a-input
         v-model:value="filterText"
         allow-clear
+        size="small"
         :placeholder="t('filterProjects')"
       >
         <template #prefix>
@@ -168,7 +169,7 @@ function metaText(project) {
 }
 .side-search {
   flex: none;
-  padding: 0 8px 8px;
+  padding: 0 8px 6px;
   background: var(--sidebar-bg);
   position: relative;
   z-index: 2;
@@ -177,9 +178,22 @@ function metaText(project) {
 }
 .side-search :deep(.ant-input-affix-wrapper) {
   width: 100%;
+  min-height: 24px;
+  padding: 0 7px;
   border-radius: var(--radius);
   border-color: transparent;
   background: var(--surface-tint, #e8efec);
+  font-size: 11px;
+}
+.side-search :deep(.ant-input-affix-wrapper .ant-input) {
+  font-size: 11px;
+  line-height: 22px;
+}
+.side-search :deep(.ant-input-affix-wrapper .ant-input-prefix) {
+  margin-inline-end: 4px;
+}
+.side-search :deep(.ant-input-affix-wrapper .ant-input-clear-icon) {
+  font-size: 11px;
 }
 .side-search :deep(.ant-input-affix-wrapper:hover),
 .side-search :deep(.ant-input-affix-wrapper-focused) {
@@ -190,6 +204,7 @@ function metaText(project) {
   background: transparent;
 }
 .side-search .search-icon {
+  font-size: 11px;
   color: var(--muted, #6b7a76);
 }
 .side-list {

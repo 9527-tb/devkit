@@ -6,6 +6,7 @@
 import { ref } from "vue";
 
 export const WORKSPACE_KEY = "devkit.workspace";
+/** 历史列表（Popover 展示）；与 WORKSPACE_KEY（上次打开、重启恢复）独立存储 */
 export const WORKSPACE_HISTORY_KEY = "devkit.workspace.history";
 export const WORKSPACE_HISTORY_MAX = 12;
 
@@ -86,9 +87,23 @@ export function setLastScannedProjects(list, workspaceRoot = "") {
   lastScannedRoot.value = workspaceRoot || "";
 }
 
+function persistStoredWorkspaceRoot(path) {
+  try {
+    if (path) {
+      localStorage.setItem(WORKSPACE_KEY, path);
+    } else {
+      localStorage.removeItem(WORKSPACE_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 export function clearWorkspaceHistory() {
   workspaceHistory.value = [];
   persistWorkspaceHistory([]);
+  // 上次打开路径存于 WORKSPACE_KEY；仅清 history 无法阻止重启 auto-open
+  persistStoredWorkspaceRoot("");
 }
 
 /** 写入 root + 历史，不触发扫描 */
@@ -96,11 +111,7 @@ export function persistWorkspaceRoot(path) {
   const value = String(path || "").trim();
   if (!value) return;
   root.value = value;
-  try {
-    localStorage.setItem(WORKSPACE_KEY, value);
-  } catch {
-    /* ignore */
-  }
+  persistStoredWorkspaceRoot(value);
   const next = [value, ...workspaceHistory.value.filter((p) => p !== value)].slice(
     0,
     WORKSPACE_HISTORY_MAX,

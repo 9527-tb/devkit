@@ -1,10 +1,7 @@
 /**
  * Tauri IPC 安全包装：桌面模式 invoke/listen，预览模式降级。
- * 依赖：@tauri-apps/api；被 api/* 与 stores 调用，组件禁止直接 invoke。
- * 对应 DESIGN.md §12.2 api/tauri.js
+ * 业务 command 在 features 内直接 invoke；本模块提供 isTauri / invokeSafe / listenSafe。
  */
-
-// TODO(fe-app-shell): 完善 preview mock 与统一错误处理 — DESIGN §12.2
 
 /** 是否在 Tauri 桌面壳内运行 */
 export const isTauri =

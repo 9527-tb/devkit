@@ -1,10 +1,5 @@
-//! 跨平台抽象层。
-//!
-//! 对应 DESIGN.md §5：路径、进程终止、which、端口列举等 OS 差异收敛于此。
-//! 业务模块（providers / process）只依赖本模块公开 API，禁止写死平台路径。
-//!
-//! DONE(plat-windows): 路径 / taskkill / netstat — DESIGN §5.2
-//! DONE(plat-linux): kill 进程组 / lsof — DESIGN §5.2
+//! 跨平台抽象层：路径、进程、终端、编辑器、Git 等 OS 差异收敛于此。
+//! macOS 标题栏红绿灯由 `tauri.macos.conf.json` 的 `trafficLightPosition` 配置（Overlay），不在 Rust 中重定位。
 
 pub mod paths;
 pub mod process_kill;
@@ -15,8 +10,6 @@ pub mod terminal;
 pub mod editor;
 pub mod external_tools;
 pub mod git;
-#[cfg(target_os = "macos")]
-pub mod macos_titlebar;
 
 // 供 process / toolchains / settings 逐步迁入时调用；过渡期允许未直接引用
 #[allow(unused_imports)]

@@ -22,6 +22,8 @@ const logEl = ref(null);
 const logsPinned = ref(false);
 const logHtml = ref("");
 const search = ref("");
+/** 用户手动关闭摘要条；新摘要到达时重置 */
+const summaryDismissed = ref(false);
 let renderedLen = 0;
 let renderedKey = "";
 
@@ -34,9 +36,17 @@ const filteredLines = computed(() => {
 });
 
 const summaryVisible = computed(() => {
+  if (summaryDismissed.value) return false;
   const s = props.runSummary;
   return s && (s.success === false || (Array.isArray(s.errorLines) && s.errorLines.length));
 });
+
+watch(
+  () => props.runSummary,
+  () => {
+    summaryDismissed.value = false;
+  },
+);
 
 function onLogScroll() {
   const el = logEl.value;
@@ -143,6 +153,10 @@ async function copySummary() {
     message.error(String(e));
   }
 }
+
+function dismissSummary() {
+  summaryDismissed.value = true;
+}
 </script>
 
 <template>
@@ -192,9 +206,14 @@ async function copySummary() {
         <span class="run-summary-meta">
           {{ runSummary.action }} · {{ Math.round((runSummary.durationMs || 0) / 1000) }}s
         </span>
-        <button type="button" class="console-text-btn run-summary-copy" @click="copySummary">
-          {{ t("runSummaryCopy") }}
-        </button>
+        <div class="run-summary-actions">
+          <button type="button" class="console-text-btn run-summary-copy" @click="copySummary">
+            {{ t("runSummaryCopy") }}
+          </button>
+          <button type="button" class="console-text-btn run-summary-close" @click="dismissSummary">
+            {{ t("close") }}
+          </button>
+        </div>
       </div>
       <ul v-if="runSummary.errorLines?.length" class="run-summary-errors">
         <li v-for="(line, i) in runSummary.errorLines.slice(0, 3)" :key="i">{{ line }}</li>
@@ -271,13 +290,22 @@ async function copySummary() {
 .run-summary-meta {
   opacity: 0.75;
 }
-.run-summary-copy {
+.run-summary-actions {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.run-summary.fail .run-summary-copy {
+.run-summary-copy,
+.run-summary-close {
+  flex: none;
+}
+.run-summary.fail .run-summary-copy,
+.run-summary.fail .run-summary-close {
   color: #fca5a5;
 }
-.run-summary.ok .run-summary-copy {
+.run-summary.ok .run-summary-copy,
+.run-summary.ok .run-summary-close {
   color: #86efac;
 }
 .run-summary-errors,

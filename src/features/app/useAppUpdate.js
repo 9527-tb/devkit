@@ -1,6 +1,8 @@
 /**
- * 应用内更新：check / downloadAndInstall / relaunch。
- * 基于 @tauri-apps/plugin-updater + plugin-process。
+ * 应用内自动更新：检查 → 下载安装 → 重启。
+ *
+ * 依赖 @tauri-apps/plugin-updater（清单 URL 见 tauri.conf.json endpoints）
+ * 与 plugin-process（relaunch）。更新包经 minisign 验签，失败则拒绝安装。
  */
 
 import { onMounted, onBeforeUnmount, ref } from "vue";
@@ -15,7 +17,9 @@ import { locale, previewMode, settings } from "../../stores/settings.js";
 const t = createTranslator(locale);
 
 const STARTUP_DELAY_MS = 3000;
-/** Vite / tauri dev：静默检查无意义（endpoint 常 404），仅手动检查 */
+/** 检查更新 HTTP 超时（毫秒）；未设置时底层客户端可能长时间无响应 */
+const CHECK_TIMEOUT_MS = 15_000;
+/** 开发模式不静默检查（本地 endpoint 常不可用） */
 const IS_DEV = !!import.meta.env.DEV;
 
 export function useAppUpdate() {
@@ -74,7 +78,7 @@ export function useAppUpdate() {
 
     checking.value = true;
     try {
-      const update = await check();
+      const update = await check({ timeout: CHECK_TIMEOUT_MS });
       if (!update) {
         updateAvailable.value = false;
         pendingUpdate = null;
@@ -115,7 +119,7 @@ export function useAppUpdate() {
     if (/signature|verify|pubkey|minisign/i.test(s)) {
       return t("updateCheckBadSignature");
     }
-    if (/network|fetch|timed out|timeout|dns/i.test(s)) {
+    if (/network|fetch|timed out|timeout|time\s*out|dns|error sending request/i.test(s)) {
       return t("updateCheckNetwork");
     }
     return s;

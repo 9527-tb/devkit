@@ -129,7 +129,7 @@ function onClearHistory() {
 <style scoped>
 .ws-switcher-trigger {
   max-width: min(360px, 42vw);
-  height: 28px !important;
+  height: var(--titlebar-control-h, 28px) !important;
   padding: 0 10px !important;
   display: inline-flex !important;
   align-items: center;

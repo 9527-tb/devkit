@@ -94,18 +94,8 @@ pub struct HealthItem {
     pub port: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct HttpProbeResult {
-    pub ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<u16>,
-    pub ms: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
+/// 工作区 Git 状态摘要（供标题栏按钮展示）。
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct GitStatus {
     pub available: bool,
@@ -125,34 +115,6 @@ pub struct ActionPrefs {
     pub recent_by_project_key: std::collections::HashMap<String, Vec<String>>,
     #[serde(default)]
     pub pinned_by_project_key: std::collections::HashMap<String, Vec<String>>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct PipelineStep {
-    pub action: String,
-    #[serde(default = "default_true")]
-    pub stop_on_error: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-#[derive(Serialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct PipelineStepEvent {
-    pub project_key: String,
-    pub path: String,
-    pub kind: String,
-    pub index: usize,
-    pub action: String,
-    /// started | finished | skipped | aborted
-    pub phase: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub exit_code: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
