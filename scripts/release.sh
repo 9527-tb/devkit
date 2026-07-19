@@ -116,10 +116,13 @@ fi
 
 if [[ "$ASSUME_YES" != "1" ]]; then
   read -r -p "Continue? [y/N] " ans
-  if [[ "${ans,,}" != "y" && "${ans,,}" != "yes" ]]; then
-    echo "Aborted."
-    exit 0
-  fi
+  case "$(printf '%s' "$ans" | tr '[:upper:]' '[:lower:]')" in
+    y | yes) ;;
+    *)
+      echo "Aborted."
+      exit 0
+      ;;
+  esac
 fi
 
 cleanup() {
