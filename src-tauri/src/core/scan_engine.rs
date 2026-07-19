@@ -68,6 +68,7 @@ pub fn ignored(name: &str) -> bool {
             | "coverage"
             | "__pycache__"
             | ".pnpm-store"
+            | "uni_modules"
     )
 }
 
@@ -213,6 +214,7 @@ mod tests {
     #[test]
     fn ignores_node_modules() {
         assert!(ignored("node_modules"));
+        assert!(ignored("uni_modules"));
         assert!(!ignored("packages"));
     }
 

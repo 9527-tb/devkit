@@ -83,7 +83,7 @@ https://api.github.com/repos/.../releases/assets/<id>
 | 阶段 | 说明 |
 |------|------|
 | `publish-tauri` | 多平台构建，上传安装包与 updater 产物，创建正式 Release |
-| `fix-updater-json` | 将 `latest.json` 中的 API 资源 URL 改写为 `browser_download_url`，并以文件名 **`latest.json`** 覆盖上传（旧 bug 曾误传成 `devkit-latest-<tag>.json`，导致修复“成功”但客户端仍 403） |
+| `fix-updater-json` | 从 Release 资产**完整重建** `latest.json`（含 macOS 平台 + ghfast 镜像 URL），并以文件名 **`latest.json`** 覆盖上传 |
 
 ### 常见问题
 
@@ -91,7 +91,7 @@ https://api.github.com/repos/.../releases/assets/<id>
 |------|------|
 | Actions 失败：缺少签名密钥 | 检查 Secret `TAURI_SIGNING_PRIVATE_KEY` |
 | 有 Release 但客户端找不到更新 | 确认不是 draft；确认 tag 已推送且为 Latest |
-| 立即更新 403 Forbidden | `latest.json` 里若是 `api.github.com/.../assets/<id>` 会 403。先确认 Actions 里 `fix-updater-json` 成功，再手动：`node scripts/fix-latest-json.mjs vX.Y.Z`（必须覆盖上传名为 `latest.json`，不要传成别的文件名） |
+| 立即更新 403 Forbidden | 确认 `latest.json` 含 darwin 平台且 URL 为 `releases/download/...`（非 `api.github.com/assets`）。Actions 里 `fix-updater-json` 成功后仍异常时，手动：`node scripts/rebuild-latest-json.mjs vX.Y.Z` |
 | 版本号不一致 | 重新执行 `pnpm version:sync x.y.z` 并提交后再打新 tag |
 
 ---
@@ -154,5 +154,5 @@ xattr -cr /Applications/DevKit.app
 |-------------|------|
 | `pnpm version:sync [x.y.z]` | 查询或写入三处版本号 |
 | `pnpm tauri icon <png>` | 生成全套系统图标 |
-| `node scripts/fix-latest-json.mjs vX.Y.Z` | 手动修复某次 Release 的 `latest.json` |
+| `node scripts/rebuild-latest-json.mjs vX.Y.Z` | 手动从 Release 资产重建并上传 `latest.json`（含镜像 URL） |
 | `scripts/tauri-build.mjs` | 本地多平台打包入口 |

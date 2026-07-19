@@ -1,6 +1,8 @@
 //! DevKit Tauri 库入口。
 //!
-//! 模块边界见 DESIGN.md §12.3。commands 仅薄封装；业务在 core/providers/process/settings。
+//! - `setup`：托盘、开机自启、更新插件
+//! - `on_window_event`：关闭到托盘
+//! - `invoke_handler`：前端 IPC 命令注册表（实现见 `commands` 模块）
 
 mod platform;
 mod core;
@@ -14,11 +16,9 @@ mod deps;
 mod health;
 mod models;
 mod process;
-mod probe;
 mod runtime;
 mod workspace_config;
 mod tray;
-// DONE(chore-dead-code): 已删除 scan.rs / command_for；扫描与命令解析在 core/providers
 
 use process::AppState;
 use tauri::Manager;
@@ -56,35 +56,9 @@ pub fn run() {
             if let Ok(settings) = runtime::load_settings(app.handle()) {
                 let _ = runtime::sync_launch_at_login(app.handle(), settings.general.launch_at_login);
             }
-            // macOS：红绿灯垂直居中到自定义标题栏（延迟一帧，等 NSWindow 布局完成）
-            #[cfg(target_os = "macos")]
-            {
-                let handle = app.handle().clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_millis(50));
-                    let app = handle.clone();
-                    let _ = handle.run_on_main_thread(move || {
-                        platform::macos_titlebar::apply_main_traffic_lights(&app);
-                    });
-                });
-            }
             Ok(())
         })
         .on_window_event(|window, event| {
-            #[cfg(target_os = "macos")]
-            {
-                use tauri::WindowEvent;
-                match event {
-                    // 拖拽缩放高频触发：防抖后再定位，避免红绿灯跳动
-                    WindowEvent::Resized(_) => {
-                        platform::macos_titlebar::schedule_traffic_lights_for_window(window);
-                    }
-                    WindowEvent::ScaleFactorChanged { .. } | WindowEvent::ThemeChanged(_) => {
-                        platform::macos_titlebar::apply_traffic_lights_for_window(window);
-                    }
-                    _ => {}
-                }
-            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() != "main" {
                     return;
@@ -122,14 +96,11 @@ pub fn run() {
             commands::initialize_runtime_settings,
             commands::list_providers,
             commands::get_capabilities,
-            commands::get_last_run_summary,
-            commands::run_pipeline,
             commands::workspace_health_check,
             commands::open_in_editor,
             commands::open_in_terminal,
             commands::detect_external_tools,
             commands::workspace_git_status,
-            commands::probe_http,
             commands::load_action_prefs,
             commands::save_action_prefs,
             commands::check_outdated_deps,

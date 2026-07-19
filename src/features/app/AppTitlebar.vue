@@ -88,29 +88,27 @@ function onHealthHandle(payload) {
   }
 }
 
+let unlistenResize;
+let unlistenScale;
+let lastFullscreen = null;
+
 async function refreshMacTrafficInset() {
   if (!isMac || !isTauri) {
     macTrafficInset.value = false;
     return;
   }
   try {
-    // 最大化仍保留红绿灯，只有全屏才隐藏并收回 Tab 留白
     const fullscreen = await getCurrentWindow().isFullscreen();
+    if (fullscreen === lastFullscreen) return;
+    lastFullscreen = fullscreen;
     macTrafficInset.value = !fullscreen;
   } catch {
     macTrafficInset.value = true;
   }
 }
 
-let unlistenResize;
-let unlistenScale;
-let insetTimer;
-
 function scheduleMacTrafficInset() {
-  clearTimeout(insetTimer);
-  insetTimer = setTimeout(() => {
-    refreshMacTrafficInset();
-  }, 80);
+  refreshMacTrafficInset();
 }
 
 onMounted(async () => {
@@ -130,7 +128,6 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  clearTimeout(insetTimer);
   if (typeof unlistenResize === "function") unlistenResize();
   if (typeof unlistenScale === "function") unlistenScale();
 });
@@ -259,10 +256,10 @@ onBeforeUnmount(() => {
   flex: 1;
   min-width: 0;
   height: 100%;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  column-gap: 8px;
   padding: 0 6px 0 8px;
   pointer-events: none;
   box-sizing: border-box;
@@ -277,32 +274,38 @@ onBeforeUnmount(() => {
 .app-titlebar-nav,
 .app-titlebar-actions,
 .app-titlebar-tab,
-.app-titlebar-icon-btn {
+.app-titlebar-icon-btn,
+.app-titlebar-center {
   pointer-events: auto;
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
 
-.app-titlebar-left,
-.app-titlebar-right {
+.app-titlebar-left {
+  grid-column: 1;
+  justify-self: start;
   display: flex;
   align-items: center;
-  align-self: center;
   gap: 4px;
   min-width: 0;
-  height: auto;
+  height: var(--titlebar-control-h);
   z-index: 2;
 }
 
 .app-titlebar-right {
-  margin-left: auto;
-  flex: none;
-  /* Windows 窗口按钮仍铺满栏高 */
-  align-self: stretch;
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: var(--titlebar-control-h);
+  z-index: 2;
 }
 
-.app-titlebar.is-mac .app-titlebar-right {
-  align-self: center;
+.app-titlebar.is-win-controls .app-titlebar-right {
+  align-self: stretch;
+  height: 100%;
 }
 
 .app-titlebar-nav {
@@ -347,7 +350,6 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-0.5px);
 }
 
 .app-titlebar-tab-icon :deep(svg) {
@@ -367,18 +369,14 @@ onBeforeUnmount(() => {
 }
 
 .app-titlebar-center {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  grid-column: 2;
+  justify-self: center;
   z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
   max-width: min(420px, 46vw);
-  pointer-events: auto;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+  height: var(--titlebar-control-h);
 }
 
 .app-titlebar-actions {

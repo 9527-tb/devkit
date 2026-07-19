@@ -1,0 +1,51 @@
+{
+  "version": "0.0.4",
+  "notes": "## DevKit v0.0.4\n\n相对 v0.0.3：工作台效率增强与自定义标题栏。\n\n### 新增\n- 全局自定义标题栏：工作区切换、环境体检、Git 状态、检查更新\n- 外部编辑器 / 控制台一键打开（自动探测本机应用）\n- 运行结束摘要、后台任务完成通知\n- 依赖过期检查、workspace.json 导出、SSH 部署 MVP\n\n### 优化\n- 项目头仅显示名称；多实例选择移至名称旁\n- 日志搜索与贴底滚动精简；失败摘要底部弹出\n- 随机端口（port=0）项目体检跳过占用预检\n- 修复 macOS 最大化时红绿灯与 Tab 重叠、拖拽缩放跳动\n\n### 移除\n- 主界面路径顶栏、分栏日志、日志跟随底部/导出、探活、流水线入口\n\n安装包与 updater 产物见下方附件。客户端通过 `latest.json` 检查更新。\n\n<!-- bust 1784444421385 -->\n",
+  "pub_date": "2026-07-19T07:00:21.385Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSG1ZWHZRS3ptMmRiT3E2TGNGd3FORUVCcFVRRWFKV2tXNnpHY0xoYS80ZkJndTdJOFM5VC9YeG40ejBuYmZ6OVRPeE1nNXQ2ekhCYlI3OElCRGNCMXdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMjExCWZpbGU6RGV2S2l0LmFwcC50YXIuZ3oKdnNra0ZLWk9JdEczejlsNGx3bHF6VmNTZ3MzUVZPMEExazRNNWt5NGcvZ2FLb2lRVk5JRG9OVVZNdmZ0T0NyUkFnZUFuUkplV3dqQkNPeDZ0Qlg0Q1E9PQo="
+    },
+    "darwin-aarch64-app": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_aarch64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSG1ZWHZRS3ptMmRiT3E2TGNGd3FORUVCcFVRRWFKV2tXNnpHY0xoYS80ZkJndTdJOFM5VC9YeG40ejBuYmZ6OVRPeE1nNXQ2ekhCYlI3OElCRGNCMXdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMjExCWZpbGU6RGV2S2l0LmFwcC50YXIuZ3oKdnNra0ZLWk9JdEczejlsNGx3bHF6VmNTZ3MzUVZPMEExazRNNWt5NGcvZ2FLb2lRVk5JRG9OVVZNdmZ0T0NyUkFnZUFuUkplV3dqQkNPeDZ0Qlg0Q1E9PQo="
+    },
+    "darwin-x86_64": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_x64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHVKUnRuV0piUE03RzJpazJXUnY3ZkVIVG9ESGxBVkhWUmlGOGlJdm16d1Ztdm5JVHNneXJHRXdRMzRRWDNIdmhMbk5SSFBTc2ZmZGpwa25FQVFidUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMzE0CWZpbGU6RGV2S2l0LmFwcC50YXIuZ3oKa0RaVVBtNk9OdnFGcStiaEFmQ1ZKTWdYMk94My9rcWZ0czNSTmJmMGRlaU02dDJPY25oMDRkNzBmenVVREJjdDFyVWxvTzZEWE5oY1pTK3V6akFYQ0E9PQo="
+    },
+    "darwin-x86_64-app": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_x64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHVKUnRuV0piUE03RzJpazJXUnY3ZkVIVG9ESGxBVkhWUmlGOGlJdm16d1Ztdm5JVHNneXJHRXdRMzRRWDNIdmhMbk5SSFBTc2ZmZGpwa25FQVFidUFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMzE0CWZpbGU6RGV2S2l0LmFwcC50YXIuZ3oKa0RaVVBtNk9OdnFGcStiaEFmQ1ZKTWdYMk94My9rcWZ0czNSTmJmMGRlaU02dDJPY25oMDRkNzBmenVVREJjdDFyVWxvTzZEWE5oY1pTK3V6akFYQ0E9PQo="
+    },
+    "windows-x86_64": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHVScG5FbjVGa0dSZGVSUi94b0xhaVhsWC9mMWRWZTFYT2h5QUREaS9VVzc5TEhTeFdGK3dmUWlZTGZMeHNBQlpXeG9FWUQyK1hkVUxialFZelNjcGdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzNDA2CWZpbGU6RGV2S2l0XzAuMC40X3g2NC1zZXR1cC5leGUKY2dGV2VuLy8zODFlSmx2RU1oSzYzSVcrSEw5cXNHUkFmOTh0OWFVT0tMRS9WL3FzZzlZRzIySy9TeDBlZHdTOEIvVVVicCtiM0FCMkhJakpPWlo3Q1E9PQo="
+    },
+    "windows-x86_64-nsis": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_x64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHVScG5FbjVGa0dSZGVSUi94b0xhaVhsWC9mMWRWZTFYT2h5QUREaS9VVzc5TEhTeFdGK3dmUWlZTGZMeHNBQlpXeG9FWUQyK1hkVUxialFZelNjcGdjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzNDA2CWZpbGU6RGV2S2l0XzAuMC40X3g2NC1zZXR1cC5leGUKY2dGV2VuLy8zODFlSmx2RU1oSzYzSVcrSEw5cXNHUkFmOTh0OWFVT0tMRS9WL3FzZzlZRzIySy9TeDBlZHdTOEIvVVVicCtiM0FCMkhJakpPWlo3Q1E9PQo="
+    },
+    "windows-x86_64-msi": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_x64_en-US.msi",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSGhRWTdIdXRHZThzUEdFR3hraUwzeWwrcUFoWXdNZlcxdjY0T3ZYQkp6MnBkUFlxSzd0UGtkWFU4SlFtK0IxWFhzMm0vS3Jrc3BJN0lkV2tiNnhUOHdFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzNDA2CWZpbGU6RGV2S2l0XzAuMC40X3g2NF9lbi1VUy5tc2kKUlFkS1BuT1Y0bVYxeDQ3RWRxRTNtNjFUbG1BeXQybGVLUEEzL0NGd011bEpQUEhSVHhORG9wOFF6MVhqUmpNL08xQStRK2pjNHlKUTZDckFSbkhnQ1E9PQo="
+    },
+    "linux-x86_64": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHNyUFpPZEw1VW9WVEdZaEVuUXRCSlhMdDhNNnlwcVpyaUNuZkV5UlBrSHlpVjVxVitMWUd5cW4zZnRETHhhQnJ4REtoM1RoWDBQclRxbTFLVE9rRndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMzk5CWZpbGU6RGV2S2l0XzAuMC40X2FtZDY0LkFwcEltYWdlClZ4djBjcm9Jd0s4RHhqTVgzQXlwQWZiWDMyNUZmVDlReHpIbGxRcXVEY29tczIxUjhBcklUdDg4MHlyZGVEbmZSVEtzU3QzWEo0a0Rsa0VuYk9jU0FnPT0K"
+    },
+    "linux-x86_64-appimage": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_amd64.AppImage",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHNyUFpPZEw1VW9WVEdZaEVuUXRCSlhMdDhNNnlwcVpyaUNuZkV5UlBrSHlpVjVxVitMWUd5cW4zZnRETHhhQnJ4REtoM1RoWDBQclRxbTFLVE9rRndZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMzk5CWZpbGU6RGV2S2l0XzAuMC40X2FtZDY0LkFwcEltYWdlClZ4djBjcm9Jd0s4RHhqTVgzQXlwQWZiWDMyNUZmVDlReHpIbGxRcXVEY29tczIxUjhBcklUdDg4MHlyZGVEbmZSVEtzU3QzWEo0a0Rsa0VuYk9jU0FnPT0K"
+    },
+    "linux-x86_64-deb": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit_0.0.4_amd64.deb",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSHBsTlllZEw1YVZwSzBwR0xCMW5nTnVhVmFHYlk0SmorR3NvaDZUZXY3U05pbXpWSzR3NGZRenc5ZjVUZFJEVmZuUU90OFZTUU9UNDJxMWIxekpPbXc4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzMzk5CWZpbGU6RGV2S2l0XzAuMC40X2FtZDY0LmRlYgorSk9mTmk1RitXSG1mUGtweTNmWVJjOGUyUzgrUk80Y3ExZ1g0TVNkem05S3dreWhianVDQkJ3QXFtcmpObDhCSVp0UWY5cGtvdStvZGJCc2p4OXBBQT09Cg=="
+    },
+    "linux-x86_64-rpm": {
+      "url": "https://ghfast.top/https://github.com/9527-tb/devkit/releases/download/v0.0.4/DevKit-0.0.4-1.x86_64.rpm",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSWHhvKzh6VVYwSGc3bWwzcDZEYlordmJtM1JKWG4wM01KZkduaUhNNGw0L2xwbkplME5ON0ZmR2kyK09rTmk3QVVvVjBRSVorcE5WZGdmMXZMMG5JUGptamtlM0dDU0FVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0NDQzNDAwCWZpbGU6RGV2S2l0LTAuMC40LTEueDg2XzY0LnJwbQo0bVE1c3k1TFQvaGcwL3ZIVVYwM2EvYVlabmw5c1lUNkNYdFYzVVVYVDBaZkpFbmlLUVhKbWpOVHF6bHZLb3Z1eFdlMUovbkJOTnZYWkRCZDNKOUFEZz09Cg=="
+    }
+  }
+}
