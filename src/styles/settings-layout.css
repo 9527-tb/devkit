@@ -6,12 +6,6 @@
   align-items: center;
   gap: 8px;
 }
-.settings-auto-tag {
-  margin: 0 !important;
-  border-radius: var(--radius);
-  font-weight: 600;
-  line-height: 20px;
-}
 .settings-layout {
   min-height: 0;
   flex: 1;
@@ -27,6 +21,19 @@
   border-right: 1px solid var(--line);
   background: var(--surface-muted);
 }
+.settings-nav-heading {
+  margin: 10px 8px 4px;
+  padding: 0;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  user-select: none;
+  pointer-events: none;
+}
+.settings-nav-heading:first-child {
+  margin-top: 2px;
+}
 .settings-nav-item {
   width: 100%;
   display: block;
@@ -40,6 +47,9 @@
   font-weight: 600;
   cursor: pointer;
   margin-bottom: 2px;
+}
+.settings-nav-item.nested {
+  padding-left: 22px;
 }
 .settings-nav-item .ant-badge {
   width: 100%;

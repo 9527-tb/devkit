@@ -16,6 +16,12 @@ export const TOOL_REGISTRY = [
     order: 10,
     component: defineAsyncComponent(() => import("./ports/PortManagerPanel.vue")),
   },
+  {
+    id: "deploy",
+    titleKey: "toolDeploy",
+    order: 20,
+    component: defineAsyncComponent(() => import("../deploy/DeployPanel.vue")),
+  },
 ];
 
 export function toolsSorted() {

@@ -1,73 +1,108 @@
 <!--
-  设置页左侧导航：通用段 + 动态 toolchain 段。
+  设置页左侧导航：基本配置 + 工具链段 + 项目类型段。
   依赖：stores/settings；被 SettingsView 使用。
   对应 DESIGN.md §12.2 SettingsNav
 -->
 <script setup>
-import { computed, inject, onMounted, ref } from "vue";
+import { computed, inject, onMounted, ref, watch } from "vue";
 import { createTranslator } from "../../i18n/index.js";
-import { locale, settingsCat } from "../../stores/settings.js";
+import {
+  locale,
+  settingsCat,
+  normalizeSettingsCat,
+  SETTINGS_CAT,
+  PROVIDER_KIND_CAT,
+} from "../../stores/settings.js";
 import { invokeSafe } from "../../api/tauri.js";
-
-// DONE(fe-settings-view): 导航项与选中态 — DESIGN §12.2
-// DONE(fe-settings-toolchain-dynamic): 按 list_providers 动态段 — DESIGN R5
 
 const t = createTranslator(locale);
 const appUpdate = inject("appUpdate", null);
 const updateAvailable = computed(() => !!appUpdate?.updateAvailable?.value);
 
-const staticItems = [{ id: "general", labelKey: "navGeneral" }];
+/** 项目类型侧栏固定顺序：Node → Cargo → Maven → Gradle */
+const PROVIDER_NAV_ORDER = ["node", "cargo", "maven", "gradle"];
 
-/** @type {import('vue').Ref<Array<{id:string,labelKey:string}>>} */
-const toolchainItems = ref([
-  { id: "java", labelKey: "navJava" },
-  { id: "node", labelKey: "navNode" },
-]);
-
-const KIND_NAV = {
-  maven: { id: "java", labelKey: "navJava" },
-  node: { id: "node", labelKey: "navNode" },
-  cargo: { id: "cargo", labelKey: "navCargo" },
-  gradle: { id: "gradle", labelKey: "navGradle" },
+const PROVIDER_LABEL_KEYS = {
+  node: "navProviderNode",
+  cargo: "navProviderCargo",
+  maven: "navProviderMaven",
+  gradle: "navProviderGradle",
 };
 
+/** @type {import('vue').Ref<string[]>} */
+const providerKinds = ref([...PROVIDER_NAV_ORDER]);
+
 onMounted(async () => {
+  settingsCat.value = normalizeSettingsCat(settingsCat.value);
   try {
     const kinds = await invokeSafe("list_providers");
     if (!Array.isArray(kinds) || !kinds.length) return;
-    const seen = new Set();
-    const items = [];
-    for (const kind of kinds) {
-      const meta = KIND_NAV[kind];
-      if (!meta || seen.has(meta.id)) continue;
-      seen.add(meta.id);
-      items.push(meta);
-    }
-    if (items.length) toolchainItems.value = items;
+    const available = new Set(kinds.filter((k) => PROVIDER_KIND_CAT[k]));
+    const ordered = PROVIDER_NAV_ORDER.filter((k) => available.has(k));
+    if (ordered.length) providerKinds.value = ordered;
   } catch {
     /* preview */
   }
 });
 
-const navItems = computed(() => [...staticItems, ...toolchainItems.value]);
+watch(settingsCat, (cat) => {
+  const next = normalizeSettingsCat(cat);
+  if (next !== cat) settingsCat.value = next;
+});
+
+/** @type {import('vue').ComputedRef<Array<{type:'heading'|'link', id?:string, labelKey:string, nested?:boolean}>>} */
+const navItems = computed(() => {
+  const providers = providerKinds.value.map((kind) => ({
+    type: "link",
+    id: PROVIDER_KIND_CAT[kind],
+    labelKey: PROVIDER_LABEL_KEYS[kind],
+    nested: true,
+  }));
+  return [
+    { type: "link", id: SETTINGS_CAT.GENERAL, labelKey: "navGeneral" },
+    { type: "heading", labelKey: "navSectionToolchain" },
+    {
+      type: "link",
+      id: SETTINGS_CAT.TOOLCHAIN_JDK,
+      labelKey: "navToolchainJava",
+      nested: true,
+    },
+    {
+      type: "link",
+      id: SETTINGS_CAT.TOOLCHAIN_NODE,
+      labelKey: "navToolchainNode",
+      nested: true,
+    },
+    { type: "heading", labelKey: "navSectionProviders" },
+    ...providers,
+  ];
+});
+
+function selectCat(id) {
+  settingsCat.value = normalizeSettingsCat(id);
+}
 </script>
 
 <template>
   <aside class="settings-nav">
-    <button
-      v-for="item in navItems"
-      :key="item.id"
-      type="button"
-      class="settings-nav-item"
-      :class="{ active: settingsCat === item.id }"
-      @click="settingsCat = item.id"
-    >
-      <a-badge
-        :dot="item.id === 'general' && updateAvailable"
-        :offset="[6, 2]"
+    <template v-for="(item, index) in navItems" :key="item.id || `${item.labelKey}-${index}`">
+      <div v-if="item.type === 'heading'" class="settings-nav-heading">
+        {{ t(item.labelKey) }}
+      </div>
+      <button
+        v-else
+        type="button"
+        class="settings-nav-item"
+        :class="{ active: settingsCat === item.id, nested: item.nested }"
+        @click="selectCat(item.id)"
       >
-        <span>{{ t(item.labelKey) }}</span>
-      </a-badge>
-    </button>
+        <a-badge
+          :dot="item.id === SETTINGS_CAT.GENERAL && updateAvailable"
+          :offset="[6, 2]"
+        >
+          <span>{{ t(item.labelKey) }}</span>
+        </a-badge>
+      </button>
+    </template>
   </aside>
 </template>

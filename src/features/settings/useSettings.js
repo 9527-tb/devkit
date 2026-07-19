@@ -23,13 +23,15 @@ import {
   schedulePersistSettings,
   applyAppearance,
   loadPreviewSettings,
+  SETTINGS_CAT,
+  normalizeSettingsCat,
   normalizeSettings,
   normalizeNodePackageManager,
   clampActionButtonCount,
   entryKey,
   patchSettings,
 } from "../../stores/settings.js";
-import { toolsPage } from "../../stores/tools.js";
+import { toolsPage, toolsQuery } from "../../stores/tools.js";
 
 const t = createTranslator(locale);
 import {
@@ -60,10 +62,10 @@ export function useSettings() {
     patchSettings(updater);
   }
 
-  async function openSettings() {
+  async function openSettings(cat) {
     toolsPage.value = false;
     settingsPage.value = true;
-    settingsCat.value = "general";
+    settingsCat.value = normalizeSettingsCat(cat || SETTINGS_CAT.GENERAL);
     await load();
   }
 
@@ -97,6 +99,46 @@ export function useSettings() {
       general: { ...settings.value.general, logWrap: !!checked },
     };
     logWrap.value = !!checked;
+    schedulePersistSettings();
+  }
+
+  function onNotifyOnTaskDoneChange(checked) {
+    settings.value = {
+      ...settings.value,
+      general: { ...settings.value.general, notifyOnTaskDone: !!checked },
+    };
+    schedulePersistSettings();
+  }
+
+  function onHealthCheckOnScanChange(checked) {
+    settings.value = {
+      ...settings.value,
+      general: { ...settings.value.general, healthCheckOnScan: !!checked },
+    };
+    schedulePersistSettings();
+  }
+
+  function onPreferWorkspaceConfigChange(checked) {
+    settings.value = {
+      ...settings.value,
+      general: { ...settings.value.general, preferWorkspaceConfig: !!checked },
+    };
+    schedulePersistSettings();
+  }
+
+  function onEditorCommandChange(value) {
+    settings.value = {
+      ...settings.value,
+      general: { ...settings.value.general, editorCommand: String(value || "").trim() },
+    };
+    schedulePersistSettings();
+  }
+
+  function onTerminalAppChange(value) {
+    settings.value = {
+      ...settings.value,
+      general: { ...settings.value.general, terminalApp: String(value || "").trim() },
+    };
     schedulePersistSettings();
   }
 
@@ -250,6 +292,11 @@ export function useSettings() {
     onThemeChange,
     onLocaleChange,
     onLogWrapSettingChange,
+    onNotifyOnTaskDoneChange,
+    onHealthCheckOnScanChange,
+    onPreferWorkspaceConfigChange,
+    onEditorCommandChange,
+    onTerminalAppChange,
     onActionButtonCountChange,
     onMavenHomeInput,
     onNodePackageManagerChange,

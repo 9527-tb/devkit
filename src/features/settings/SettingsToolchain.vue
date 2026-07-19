@@ -1,5 +1,5 @@
 <!--
-  工具链设置面板：Java/JDK/Maven 与 Node（过渡；R5 改为注册表驱动）。
+  工具链 + 项目类型设置面板（按 settingsCat 渲染）。
   依赖：stores/settings、useSettings。
   对应 DESIGN.md §12.2 SettingsToolchain
 -->
@@ -17,13 +17,10 @@ import {
   NODE_PACKAGE_MANAGERS,
   normalizeNodePackageManager,
   previewMode,
+  SETTINGS_CAT,
 } from "../../stores/settings.js";
 import { useSettings } from "./useSettings.js";
 import KindProjectFilter from "./KindProjectFilter.vue";
-
-// DONE(fe-settings-java): Java/JDK/Maven 设置迁出 App.vue — DESIGN §12.2
-// DONE(fe-settings-node): Node 设置迁出 App.vue — DESIGN §12.2
-// DONE(fe-settings-toolchain-dynamic): 导航按 list_providers；本面板按 cat 渲染 — DESIGN R5
 
 const emptySimpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 const t = createTranslator(locale);
@@ -57,7 +54,6 @@ async function refreshPackageManagers() {
     const list = (Array.isArray(found) ? found : [])
       .map((x) => String(x).toLowerCase())
       .filter((x) => NODE_PACKAGE_MANAGERS.includes(x));
-    // 探测失败或为空时回退完整列表，避免下拉无选项
     installedPackageManagers.value = list.length ? list : [...NODE_PACKAGE_MANAGERS];
     const current = normalizeNodePackageManager(settings.value.node?.packageManager);
     if (list.length && !list.includes(current)) {
@@ -74,14 +70,15 @@ onMounted(() => {
 });
 
 watch(settingsCat, (cat) => {
-  if (cat === "node") refreshPackageManagers();
+  if (cat === SETTINGS_CAT.TOOLCHAIN_NODE) refreshPackageManagers();
 });
 </script>
 
 <template>
-  <section v-show="settingsCat === 'java'" class="settings-panel">
-    <h2>{{ t("javaTitle") }}</h2>
-    <p class="settings-desc">{{ t("javaDesc") }}</p>
+  <!-- 工具链：JDK -->
+  <section v-show="settingsCat === SETTINGS_CAT.TOOLCHAIN_JDK" class="settings-panel">
+    <h2>{{ t("jdkTitle") }}</h2>
+    <p class="settings-desc">{{ t("jdkDesc") }}</p>
 
     <div class="cfg-group">
       <div class="cfg-group-h">
@@ -113,38 +110,12 @@ watch(settingsCat, (cat) => {
         </ul>
       </div>
     </div>
-
-    <div class="cfg-group">
-      <div class="cfg-group-h">
-        <div>
-          <b>Maven</b>
-          <span>{{ t("mavenUseHint") }}</span>
-        </div>
-      </div>
-      <div class="cfg-group-b">
-        <div class="cfg-label">{{ t("mavenHome") }}</div>
-        <div class="cfg-hint">{{ t("mavenHomeHint") }}</div>
-        <div class="runtime-add">
-          <a-input
-            :value="settings.java.mavenHome"
-            placeholder="/opt/homebrew/opt/maven/libexec"
-            @update:value="onMavenHomeInput"
-          />
-          <a-button @click="pickMavenHome">{{ t("pick") }}</a-button>
-        </div>
-      </div>
-    </div>
-
-    <KindProjectFilter
-      kind="maven"
-      title-key="mavenProjectFilter"
-      hint-key="projectsFilterMavenHint"
-    />
   </section>
 
-  <section v-show="settingsCat === 'node'" class="settings-panel">
-    <h2>{{ t("nodeTitle") }}</h2>
-    <p class="settings-desc">{{ t("nodeDesc") }}</p>
+  <!-- 工具链：Node.js -->
+  <section v-show="settingsCat === SETTINGS_CAT.TOOLCHAIN_NODE" class="settings-panel">
+    <h2>{{ t("toolchainNodeTitle") }}</h2>
+    <p class="settings-desc">{{ t("toolchainNodeDesc") }}</p>
     <div class="cfg-group">
       <div class="cfg-group-h">
         <div>
@@ -194,6 +165,57 @@ watch(settingsCat, (cat) => {
         <p v-else class="cfg-hint">{{ t("nodePackageManagerEmpty") }}</p>
       </div>
     </div>
+  </section>
+
+  <!-- 项目类型：Maven -->
+  <section v-show="settingsCat === SETTINGS_CAT.PROVIDER_MAVEN" class="settings-panel">
+    <h2>{{ t("mavenTitle") }}</h2>
+    <p class="settings-desc">{{ t("mavenDesc") }}</p>
+
+    <div class="cfg-group">
+      <div class="cfg-group-h">
+        <div>
+          <b>Maven</b>
+          <span>{{ t("mavenUseHint") }}</span>
+        </div>
+      </div>
+      <div class="cfg-group-b">
+        <div class="cfg-label">{{ t("mavenHome") }}</div>
+        <div class="cfg-hint">{{ t("mavenHomeHint") }}</div>
+        <div class="runtime-add">
+          <a-input
+            :value="settings.java.mavenHome"
+            placeholder="/opt/homebrew/opt/maven/libexec"
+            @update:value="onMavenHomeInput"
+          />
+          <a-button @click="pickMavenHome">{{ t("pick") }}</a-button>
+        </div>
+      </div>
+    </div>
+
+    <KindProjectFilter
+      kind="maven"
+      title-key="mavenProjectFilter"
+      hint-key="projectsFilterMavenHint"
+    />
+  </section>
+
+  <!-- 项目类型：Gradle -->
+  <section v-show="settingsCat === SETTINGS_CAT.PROVIDER_GRADLE" class="settings-panel">
+    <h2>{{ t("gradleTitle") }}</h2>
+    <p class="settings-desc">{{ t("gradleDesc") }}</p>
+
+    <KindProjectFilter
+      kind="gradle"
+      title-key="gradleProjectFilter"
+      hint-key="projectsFilterGradleHint"
+    />
+  </section>
+
+  <!-- 项目类型：Node 项目 -->
+  <section v-show="settingsCat === SETTINGS_CAT.PROVIDER_NODE" class="settings-panel">
+    <h2>{{ t("providerNodeTitle") }}</h2>
+    <p class="settings-desc">{{ t("providerNodeDesc") }}</p>
 
     <KindProjectFilter
       kind="node"
@@ -202,29 +224,15 @@ watch(settingsCat, (cat) => {
     />
   </section>
 
-  <section v-show="settingsCat === 'cargo'" class="settings-panel">
-    <h2>{{ t("navCargo") }}</h2>
-    <p class="settings-desc">
-      {{ t("cargoDesc") }}
-    </p>
+  <!-- 项目类型：Cargo -->
+  <section v-show="settingsCat === SETTINGS_CAT.PROVIDER_CARGO" class="settings-panel">
+    <h2>{{ t("cargoTitle") }}</h2>
+    <p class="settings-desc">{{ t("cargoDesc") }}</p>
 
     <KindProjectFilter
       kind="cargo"
       title-key="cargoProjectFilter"
       hint-key="projectsFilterCargoHint"
-    />
-  </section>
-
-  <section v-show="settingsCat === 'gradle'" class="settings-panel">
-    <h2>{{ t("navGradle") }}</h2>
-    <p class="settings-desc">
-      {{ t("gradleDesc") }}
-    </p>
-
-    <KindProjectFilter
-      kind="gradle"
-      title-key="gradleProjectFilter"
-      hint-key="projectsFilterGradleHint"
     />
   </section>
 </template>

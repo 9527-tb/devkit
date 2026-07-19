@@ -9,6 +9,7 @@ pub mod schema;
 pub mod load_save;
 pub mod migrate;
 pub mod init;
+pub mod action_prefs;
 
 #[allow(unused_imports)]
 pub use crate::runtime::{

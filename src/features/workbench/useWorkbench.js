@@ -5,13 +5,32 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { open } from "@tauri-apps/plugin-dialog";
 import { Empty, message } from "antdv-next";
-import { previewMode, settings } from "../../stores/settings.js";
+import { previewMode, settings, settingsPage, settingsCat, SETTINGS_CAT, normalizeSettingsCat } from "../../stores/settings.js";
+import { toolsPage } from "../../stores/tools.js";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
-  WORKSPACE_KEY,
+  root,
+  workspaceHistory,
+  workspaceOpenTick,
+  setWorkspaceRoot,
+  persistWorkspaceRoot,
+  clearWorkspaceHistory,
+  historyLabel,
   setLastScannedProjects,
+  workspaceConfig,
 } from "../../stores/workspace.js";
+import { chooseNewWorkspace } from "./useWorkspacePicker.js";
+import { normalizeProjectFilter } from "../settings/projectFilter.js";
+import { resolveHealthNavigation } from "./useWorkspaceHealth.js";
+import {
+  healthReport,
+  healthLoading,
+  gitStatus,
+  refreshWorkspaceHealth,
+  refreshWorkspaceGit,
+  projectHealthItems,
+} from "../../stores/workspaceStatus.js";
 import { makeProjectKey, normalizeProjectPath } from "../../shared/projectKey.js";
 import { projectPassesFilter } from "../settings/projectFilter.js";
 import {
@@ -26,12 +45,9 @@ import {
 } from "../../stores/projectTabs.js";
 import { ingestProcesses, procsFor } from "../../stores/instances.js";
 
-export function useWorkbench(tFn, emit) {
+export function useWorkbench(tFn) {
 const emptySimpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 const t = tFn;
-
-const WORKSPACE_HISTORY_KEY = "devkit.workspace.history";
-const WORKSPACE_HISTORY_MAX = 12;
 
 function depGroup(scope, children) {
   return {
@@ -82,66 +98,6 @@ function stripGroupVersionLabels(nodes = []) {
   });
 }
 
-function loadWorkspace() {
-  try {
-    return localStorage.getItem(WORKSPACE_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
-function loadWorkspaceHistory() {
-  try {
-    const raw = localStorage.getItem(WORKSPACE_HISTORY_KEY);
-    if (!raw) return [];
-    const list = JSON.parse(raw);
-    return Array.isArray(list)
-      ? list.filter((p) => typeof p === "string" && p.trim()).slice(0, WORKSPACE_HISTORY_MAX)
-      : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistWorkspaceHistory(list) {
-  try {
-    localStorage.setItem(WORKSPACE_HISTORY_KEY, JSON.stringify(list));
-  } catch {
-    /* ignore */
-  }
-}
-
-function saveWorkspace(value) {
-  try {
-    if (!value) return;
-    localStorage.setItem(WORKSPACE_KEY, value);
-    const next = [value, ...workspaceHistory.value.filter((p) => p !== value)].slice(
-      0,
-      WORKSPACE_HISTORY_MAX,
-    );
-    workspaceHistory.value = next;
-    persistWorkspaceHistory(next);
-  } catch {
-    /* ignore */
-  }
-}
-
-function historyLabel(path) {
-  if (!path) return "";
-  const parts = path.replace(/\\/g, "/").split("/").filter(Boolean);
-  if (parts.length <= 2) return path;
-  return `…/${parts.slice(-2).join("/")}`;
-}
-
-const workspaceHistory = ref(loadWorkspaceHistory());
-const root = ref(loadWorkspace());
-if (root.value && !workspaceHistory.value.includes(root.value)) {
-  workspaceHistory.value = [root.value, ...workspaceHistory.value].slice(
-    0,
-    WORKSPACE_HISTORY_MAX,
-  );
-  persistWorkspaceHistory(workspaceHistory.value);
-}
 const projects = ref([]);
 const selectedPath = ref("");
 const selectedKind = ref("");
@@ -152,6 +108,46 @@ const depLoading = ref(false);
 const processes = ref({});
 const logs = ref([]);
 const liveDependencies = ref(null);
+/** projectKey -> 最近一次 RunSummary */
+const lastRunSummaries = ref({});
+/** 最近/置顶动作偏好 */
+const actionPrefs = ref({ recentByProjectKey: {}, pinnedByProjectKey: {} });
+const currentRunSummary = computed(() => {
+  const path = selectedPath.value;
+  const kind = selectedKind.value;
+  if (!path || !kind) return null;
+  const key = makeProjectKey(normPath(path), kind);
+  return lastRunSummaries.value[key] || null;
+});
+
+async function notifyTaskDone(summary) {
+  if (settings.value.general?.notifyOnTaskDone === false) return;
+  try {
+    const focused = await getCurrentWindow().isFocused();
+    if (focused) return;
+  } catch {
+    /* 继续尝试通知 */
+  }
+  try {
+    const mod = await import("@tauri-apps/plugin-notification");
+    let granted = await mod.isPermissionGranted();
+    if (!granted) {
+      granted = (await mod.requestPermission()) === "granted";
+    }
+    if (!granted) return;
+    const proj =
+      projects.value.find(
+        (p) => makeProjectKey(normPath(p.path), p.kind) === summary.projectKey,
+      )?.name || summary.path || t("projectFallback");
+    const ok = summary.success;
+    mod.sendNotification({
+      title: ok ? t("notifyTaskOk") : t("notifyTaskFail"),
+      body: `${proj} · ${summary.action || ""}`,
+    });
+  } catch {
+    /* 插件未安装或权限拒绝 */
+  }
+}
 
 function sameLogLines(a, b) {
   if (a === b) return true;
@@ -229,10 +225,163 @@ const dependencyTree = computed(() =>
 );
 const dependencyCount = computed(() => countDeps(dependencyTree.value));
 
-const actionList = computed(() => {
-  if (!current.value) return [];
-  return projectActionKeys(current.value);
-});
+const refreshHealth = refreshWorkspaceHealth;
+
+function orderedActionsFor(project) {
+  if (!project) return [];
+  const all = projectActionKeys(project);
+  const key = projectKey(project);
+  const pinned = (actionPrefs.value.pinnedByProjectKey[key] || []).filter((a) =>
+    all.includes(a),
+  );
+  const recent = (actionPrefs.value.recentByProjectKey[key] || []).filter(
+    (a) => all.includes(a) && !pinned.includes(a),
+  );
+  const rest = all.filter((a) => !pinned.includes(a) && !recent.includes(a));
+  return [...pinned, ...recent, ...rest];
+}
+
+const actionList = computed(() => orderedActionsFor(current.value));
+
+async function loadActionPrefs() {
+  if (previewMode.value) return;
+  try {
+    actionPrefs.value = await invoke("load_action_prefs");
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function saveActionPrefs() {
+  if (previewMode.value) return;
+  try {
+    await invoke("save_action_prefs", { prefs: actionPrefs.value });
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function recordRecentAction(project, action) {
+  const key = projectKey(project);
+  if (!key || !action) return;
+  const prev = actionPrefs.value.recentByProjectKey[key] || [];
+  const next = [action, ...prev.filter((a) => a !== action)].slice(0, 8);
+  actionPrefs.value = {
+    ...actionPrefs.value,
+    recentByProjectKey: {
+      ...actionPrefs.value.recentByProjectKey,
+      [key]: next,
+    },
+  };
+  saveActionPrefs();
+}
+
+function pinAction(project, action) {
+  const key = projectKey(project);
+  if (!key || !action) return;
+  const prev = actionPrefs.value.pinnedByProjectKey[key] || [];
+  if (prev.includes(action)) return;
+  actionPrefs.value = {
+    ...actionPrefs.value,
+    pinnedByProjectKey: {
+      ...actionPrefs.value.pinnedByProjectKey,
+      [key]: [...prev, action],
+    },
+  };
+  saveActionPrefs();
+}
+
+function unpinAction(project, action) {
+  const key = projectKey(project);
+  if (!key || !action) return;
+  const prev = actionPrefs.value.pinnedByProjectKey[key] || [];
+  actionPrefs.value = {
+    ...actionPrefs.value,
+    pinnedByProjectKey: {
+      ...actionPrefs.value.pinnedByProjectKey,
+      [key]: prev.filter((a) => a !== action),
+    },
+  };
+  saveActionPrefs();
+}
+
+function isPinnedAction(project, action) {
+  const key = projectKey(project);
+  return (actionPrefs.value.pinnedByProjectKey[key] || []).includes(action);
+}
+
+const refreshGitStatus = refreshWorkspaceGit;
+
+async function applyWorkspaceConfigFromRoot() {
+  workspaceConfig.value = null;
+  if (!root.value || previewMode.value) return;
+  try {
+    const loaded = await invoke("load_workspace_config", { root: root.value });
+    workspaceConfig.value = loaded || null;
+    if (loaded?.projectFilter && settings.value.general?.preferWorkspaceConfig !== false) {
+      settings.value = {
+        ...settings.value,
+        projectFilter: normalizeProjectFilter(loaded.projectFilter),
+      };
+    }
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+async function exportWorkspaceConfig() {
+  if (!root.value || previewMode.value) {
+    message.info(t("previewNeedTauri"));
+    return;
+  }
+  try {
+    const config = {
+      version: 1,
+      projectFilter: settings.value.projectFilter,
+      pipelines: workspaceConfig.value?.pipelines || [],
+      probes: workspaceConfig.value?.probes || {},
+    };
+    await invoke("save_workspace_config", { root: root.value, config });
+    workspaceConfig.value = config;
+    message.success(t("workspaceConfigExported"));
+  } catch (error) {
+    message.error(String(error));
+  }
+}
+
+async function openInEditor(project) {
+  if (!project?.path || previewMode.value) {
+    message.info(t("previewNeedTauri"));
+    return;
+  }
+  try {
+    await invoke("open_in_editor", { path: project.path });
+  } catch (error) {
+    message.error(String(error));
+  }
+}
+
+async function openInTerminal(project) {
+  if (!project?.path || previewMode.value) {
+    message.info(t("previewNeedTauri"));
+    return;
+  }
+  try {
+    await invoke("open_in_terminal", { path: project.path });
+  } catch (error) {
+    message.error(String(error));
+  }
+}
+
+function handleHealthNavigate({ action, port }, navigate) {
+  const target = resolveHealthNavigation(action);
+  if (!target) return;
+  if (target.type === "settings") {
+    navigate?.openSettings?.(target.cat);
+  } else if (target.type === "tools") {
+    navigate?.openTools?.(target.toolId || "ports", { port });
+  }
+}
 
 function projectActionKeys(project) {
   if (!project) return [];
@@ -624,18 +773,11 @@ async function refreshLogs() {
 
 async function openWorkspace(path) {
   if (!path) return;
-  root.value = path;
-  saveWorkspace(path);
-  await scan();
+  setWorkspaceRoot(path);
 }
 
 async function chooseDirectory() {
-  if (previewMode.value) {
-    message.info(t("previewNeedTauriShort"));
-    return;
-  }
-  const picked = await open({ directory: true, multiple: false, title: t("chooseProject") });
-  if (picked) await openWorkspace(picked);
+  await chooseNewWorkspace(t);
 }
 
 function dropdownPopupContainer() {
@@ -669,8 +811,7 @@ const workspaceHistoryMenu = computed(() => {
     ],
     onClick: ({ key }) => {
       if (key === "__clear") {
-        workspaceHistory.value = [];
-        persistWorkspaceHistory([]);
+        clearWorkspaceHistory();
         return;
       }
       if (key === "__empty") return;
@@ -687,7 +828,7 @@ async function scan() {
   }
   loading.value = true;
   try {
-    saveWorkspace(root.value);
+    persistWorkspaceRoot(root.value);
     projects.value = await invoke("scan_projects", { root: root.value });
     setLastScannedProjects(projects.value, root.value);
     liveDependencies.value = null;
@@ -701,6 +842,9 @@ async function scan() {
     }
     await refreshProcesses();
     await refreshLogs();
+    await applyWorkspaceConfigFromRoot();
+    await refreshHealth();
+    await refreshGitStatus();
     message.success(t("scanFoundProjects", { n: projects.value.length }));
   } catch (error) {
     message.error(String(error));
@@ -722,6 +866,7 @@ async function run(project, action, { quiet = false } = {}) {
       action,
       kind: project.kind,
     });
+    recordRecentAction(project, action);
     // 尽早绑定新实例 pid；日志靠事件流追加，此处不再 refreshLogs 以免空快照清空
     if (view?.pid != null) {
       selectedPid.value = view.pid;
@@ -738,7 +883,9 @@ async function run(project, action, { quiet = false } = {}) {
     const text = String(error);
     message.error(`${project.name}：${text}`);
     if (text.includes("设置") || text.includes("JDK") || text.includes("Node") || text.includes("Settings")) {
-      emit("open-settings");
+      toolsPage.value = false;
+      settingsPage.value = true;
+      settingsCat.value = normalizeSettingsCat(SETTINGS_CAT.GENERAL);
     }
     return { ok: false, error: text };
   }
@@ -873,9 +1020,11 @@ watch(
 
 let refreshTimer;
 let unlistenLog;
-
+let unlistenRunFinished;
 onMounted(async () => {
   if (previewMode.value) return;
+
+  await loadActionPrefs();
 
   unlistenLog = await listen("project-log", (event) => {
     const payload = event.payload;
@@ -883,6 +1032,16 @@ onMounted(async () => {
     if (normPath(payload.path) !== normPath(selectedPath.value)) return;
     if (payload.kind && payload.kind !== selectedKind.value) return;
     enqueueLogLine(payload.line);
+  });
+
+  unlistenRunFinished = await listen("run-finished", (event) => {
+    const summary = event.payload;
+    if (!summary?.projectKey) return;
+    lastRunSummaries.value = {
+      ...lastRunSummaries.value,
+      [summary.projectKey]: summary,
+    };
+    notifyTaskDone(summary);
   });
 
   // 进程状态轮询；日志靠事件流，避免启动期频繁 invoke
@@ -895,9 +1054,15 @@ onMounted(async () => {
   }
 });
 
+watch(workspaceOpenTick, async () => {
+  if (!root.value || previewMode.value) return;
+  await scan();
+});
+
 onBeforeUnmount(() => {
   if (refreshTimer) window.clearInterval(refreshTimer);
   if (typeof unlistenLog === "function") unlistenLog();
+  if (typeof unlistenRunFinished === "function") unlistenRunFinished();
 });
 
 
@@ -938,6 +1103,8 @@ onBeforeUnmount(() => {
     activePanel,
     switchPanel,
     logs,
+    currentRunSummary,
+    lastRunSummaries,
     clearLogs,
     dependencyTree,
     dependencyCount,
@@ -952,6 +1119,21 @@ onBeforeUnmount(() => {
     confirmCloseTab,
     cancelCloseConfirm,
     onTabContextAction,
+    healthReport,
+    healthLoading,
+    refreshHealth,
+    handleHealthNavigate,
+    projectHealthItems,
+    gitStatus,
+    refreshGitStatus,
+    actionPrefs,
+    pinAction,
+    unpinAction,
+    isPinnedAction,
+    openInEditor,
+    openInTerminal,
+    exportWorkspaceConfig,
+    workspaceConfig,
     t: tFn,
   };
 }

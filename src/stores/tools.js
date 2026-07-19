@@ -11,3 +11,6 @@ export const toolsPage = ref(false);
 
 /** 当前工具 id（与 registry / 后端 tools::registry 对齐） */
 export const toolsCat = ref(defaultToolId());
+
+/** 打开工具页时的深链参数（如 port） */
+export const toolsQuery = ref({ port: null });

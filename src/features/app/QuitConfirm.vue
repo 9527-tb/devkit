@@ -33,18 +33,17 @@ const t = createTranslator(locale);
         {{ t("quitCancel") }}
       </a-button>
       <a-button
-        danger
-        :loading="loading"
-        @click="$emit('stop-and-quit')"
-      >
-        {{ t("quitStopAndExit") }}
-      </a-button>
-      <a-button
-        type="primary"
         :disabled="loading"
         @click="$emit('quit-without-stop')"
       >
         {{ t("quitLeaveAndExit") }}
+      </a-button>
+      <a-button
+        type="primary"
+        :loading="loading"
+        @click="$emit('stop-and-quit')"
+      >
+        {{ t("quitStopAndExit") }}
       </a-button>
     </div>
   </a-modal>

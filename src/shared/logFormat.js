@@ -161,6 +161,41 @@ function wrapStyled(text, state) {
   return `${open}${body}</span>`;
 }
 
+/**
+ * 日志级别粗分类（供过滤 / 摘要）。
+ * @returns {"info"|"warn"|"error"}
+ */
+export function classifyLine(line) {
+  const s = String(line || "")
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
+    .replace(/\r/g, "");
+  const lower = s.toLowerCase();
+  if (
+    lower.includes("eaddrinuse") ||
+    lower.includes("address already in use") ||
+    lower.includes("exception") ||
+    lower.includes("fatal") ||
+    lower.includes("npm err!") ||
+    lower.includes("compilation failure") ||
+    lower.includes("build failed") ||
+    /(^|[^a-z])error([^a-z]|$)/i.test(s) ||
+    lower.includes("failed") ||
+    lower.includes("failure")
+  ) {
+    // 成功结束不算错误
+    if (lower.includes("[devkit]") && lower.includes("exit 0")) return "info";
+    return "error";
+  }
+  if (
+    lower.includes("warn") ||
+    lower.includes("warning") ||
+    lower.includes("deprecated")
+  ) {
+    return "warn";
+  }
+  return "info";
+}
+
 /** Convert a log line with ANSI colors into safe HTML (with http links). */
 export function formatLogLine(line) {
   const cleaned = String(line || "").replace(OTHER_ESC_RE, "");

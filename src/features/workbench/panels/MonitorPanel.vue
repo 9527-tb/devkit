@@ -7,9 +7,7 @@
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { createTranslator } from "../../../i18n/index.js";
-import { locale } from "../../../stores/settings.js";
-
-// DONE(rs-monitor-host): 对接真实 Host 指标 — DESIGN §8.3
+import { locale, previewMode } from "../../../stores/settings.js";
 
 const props = defineProps({
   project: { type: Object, default: null },
@@ -66,10 +64,6 @@ const listenSocket = computed(() => {
   if (!listenPorts.value.length) return "—";
   return listenPorts.value.map((p) => `tcp :${p} LISTEN`).join(", ");
 });
-
-const primaryPort = computed(() =>
-  listenPorts.value.length ? `:${listenPorts.value[0]}` : "—",
-);
 
 function fmtBytes(n) {
   const v = Number(n) || 0;
@@ -200,7 +194,7 @@ defineExpose({ refresh });
           </div>
           <div class="mon-card">
             <div class="k">{{ t("monitorNetwork") }}</div>
-            <div class="v">{{ listenPorts.length ? primaryPort : t("monitorNoListen") }}</div>
+            <div class="v">{{ listenPorts.length ? `:${listenPorts[0]}` : t("monitorNoListen") }}</div>
             <div class="s">{{ listenSocket }}</div>
           </div>
           <div class="mon-card">

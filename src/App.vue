@@ -21,14 +21,16 @@ import { useAppUpdate } from "./features/app/useAppUpdate.js";
 import InitModal from "./features/init/InitModal.vue";
 import QuitConfirm from "./features/app/QuitConfirm.vue";
 import UpdateDialog from "./features/app/UpdateDialog.vue";
+import AppTitlebar from "./features/app/AppTitlebar.vue";
 import SettingsView from "./views/SettingsView.vue";
 import ToolsView from "./views/ToolsView.vue";
 import WorkbenchView from "./views/WorkbenchView.vue";
 import { createTranslator } from "./i18n/index.js";
+import "./features/workbench/workbench.css";
 
 const t = createTranslator(locale);
-const { openSettings } = useSettings();
-const { openTools } = useTools();
+useSettings();
+useTools();
 const { bootstrap: bootstrapSettings } = useFirstInit();
 const {
   quitOpen,
@@ -91,14 +93,12 @@ onBeforeUnmount(() => {
   <a-config-provider :theme="theme">
     <div class="app-shell">
       <InitModal :primary-color="theme.token.colorPrimary" />
-      <SettingsView v-if="settingsPage" />
-      <ToolsView v-else-if="toolsPage" />
-      <WorkbenchView
-        v-else
-        :t="t"
-        @open-settings="openSettings"
-        @open-tools="openTools"
-      />
+      <AppTitlebar :t="t" />
+      <div class="app-main">
+        <SettingsView v-if="settingsPage" />
+        <ToolsView v-else-if="toolsPage" />
+        <WorkbenchView v-else :t="t" />
+      </div>
       <QuitConfirm
         v-model:open="quitOpen"
         :running-count="quitRunningCount"
@@ -163,9 +163,18 @@ select,
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background:
     radial-gradient(circle at top left, var(--dk-glow-a), transparent 34%),
     radial-gradient(circle at top right, var(--dk-glow-b), transparent 28%),
     linear-gradient(180deg, var(--dk-app-bg), var(--dk-app-bg-2));
+}
+
+.app-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>

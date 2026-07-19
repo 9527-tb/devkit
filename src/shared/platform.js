@@ -6,10 +6,25 @@
 
 // TODO(plat-linux): 补充 Linux / Windows 修饰键与平台能力提示 — DESIGN §5.1
 
+const ua =
+  typeof navigator !== "undefined"
+    ? `${navigator.platform || ""} ${navigator.userAgent || ""}`
+    : "";
+
 /** 是否运行在 macOS（含 iOS 设备 UA 粗判） */
-export const isMac =
-  typeof navigator !== "undefined" &&
-  /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
+export const isMac = /Mac|iPhone|iPad|iPod/i.test(ua);
+
+/** Windows */
+export const isWindows = /Win/i.test(ua);
+
+/** Linux（排除 Android） */
+export const isLinux = /Linux/i.test(ua) && !/Android/i.test(ua);
+
+/**
+ * 是否使用 HTML 自定义窗口按钮。
+ * macOS：原生红绿灯（Overlay titleBar）；Windows / Linux：decorations:false + 自定义控件。
+ */
+export const useCustomWindowControls = !isMac;
 
 /** 修饰键展示标签：macOS 为 ⌘，其它为 Ctrl */
 export const modKeyLabel = isMac ? "⌘" : "Ctrl";

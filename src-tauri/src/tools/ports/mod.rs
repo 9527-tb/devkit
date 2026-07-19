@@ -2,7 +2,7 @@
 //!
 //! 依赖 platform 的进程终止；端口探测逻辑自包含，不与监控 Host 采样混用。
 
-mod service;
+pub mod service;
 
 /// Tauri IPC（本工具专用命令，前缀 tool_ports_）。
 pub mod commands {

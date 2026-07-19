@@ -1,20 +1,19 @@
 <!--
-  日志面板：流式输出、换行、清空、链接点击。
-  对应 DESIGN.md §8 panel.logs
+  日志面板：流式输出、搜索、底部运行摘要；滚动贴底（上翻后暂停）。
 -->
 <script setup>
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { formatLogHtml, formatLogLine } from "../../../shared/logFormat.js";
 import { logWrap } from "../../../stores/settings.js";
 import { openUrl } from "@tauri-apps/plugin-opener";
-// 自动换行 checkbox 在面板 Tab 行（与原型 logTools 一致）
-
-// DONE(fe-panel-logs): 增量渲染减轻启动卡顿 — DESIGN §8
+import { message } from "antdv-next";
 
 const props = defineProps({
   t: { type: Function, required: true },
   projectName: { type: String, default: "" },
   lines: { type: Array, default: () => [] },
+  /** 最近一次运行摘要（RunSummary） */
+  runSummary: { type: Object, default: null },
 });
 
 const emit = defineEmits(["clear"]);
@@ -22,7 +21,22 @@ const emit = defineEmits(["clear"]);
 const logEl = ref(null);
 const logsPinned = ref(false);
 const logHtml = ref("");
+const search = ref("");
 let renderedLen = 0;
+let renderedKey = "";
+
+const filteredLines = computed(() => {
+  const needle = search.value.trim().toLowerCase();
+  if (!needle) return props.lines || [];
+  return (props.lines || []).filter((line) =>
+    String(line || "").toLowerCase().includes(needle),
+  );
+});
+
+const summaryVisible = computed(() => {
+  const s = props.runSummary;
+  return s && (s.success === false || (Array.isArray(s.errorLines) && s.errorLines.length));
+});
 
 function onLogScroll() {
   const el = logEl.value;
@@ -37,9 +51,14 @@ async function scrollLogsToBottom() {
   if (el && !logsPinned.value) el.scrollTop = el.scrollHeight;
 }
 
+function filterKey() {
+  return `${search.value}|${logWrap.value}`;
+}
+
 function rebuildHtml(lines) {
   logHtml.value = formatLogHtml(lines);
   renderedLen = lines.length;
+  renderedKey = filterKey();
 }
 
 function appendHtml(lines) {
@@ -56,9 +75,9 @@ function appendHtml(lines) {
 }
 
 function canAppend(prev, next) {
+  if (renderedKey !== filterKey()) return false;
   if (!prev?.length || !next || next.length <= prev.length) return false;
   if (prev.length !== renderedLen) return false;
-  // 确认 next 是 prev 的前缀扩展，避免切换实例时误追加
   const sample = Math.min(prev.length, 8);
   for (let i = 0; i < sample; i += 1) {
     if (prev[i] !== next[i]) return false;
@@ -68,11 +87,10 @@ function canAppend(prev, next) {
 }
 
 watch(
-  () => props.lines,
+  filteredLines,
   (lines, prev) => {
     const list = lines || [];
     if (canAppend(prev, list)) {
-      // 仅追加：避免启动期整表重格式化导致卡顿
       appendHtml(list);
     } else {
       rebuildHtml(list);
@@ -83,11 +101,9 @@ watch(
   { deep: false },
 );
 
-/** 普通点击不跳转；Ctrl/⌘ + 点击才用系统浏览器打开 */
 async function onLogClick(event) {
   const a = event.target?.closest?.("a.log-link, a[href]");
   if (!a) return;
-  // 始终拦截默认跳转，避免 WebView 直接导航离开应用
   event.preventDefault();
   event.stopPropagation();
   if (!(event.ctrlKey || event.metaKey)) return;
@@ -100,11 +116,31 @@ async function onLogClick(event) {
   }
 }
 
-/** 拦截中键等非主键打开链接 */
 function onLogAuxClick(event) {
   if (event.target?.closest?.("a.log-link, a[href]")) {
     event.preventDefault();
     event.stopPropagation();
+  }
+}
+
+async function copySummary() {
+  const s = props.runSummary;
+  if (!s) return;
+  const parts = [
+    `Project: ${props.projectName || s.path || ""}`,
+    `Action: ${s.action || ""}`,
+    `Exit: ${s.exitCode ?? "—"}`,
+    `Duration: ${s.durationMs ?? 0}ms`,
+    "",
+    ...(s.errorLines || []),
+    "",
+    ...((s.hints || []).map((h) => `Hint: ${h.message}`)),
+  ];
+  try {
+    await navigator.clipboard.writeText(parts.filter(Boolean).join("\n"));
+    message.success(props.t("runSummaryCopied"));
+  } catch (e) {
+    message.error(String(e));
   }
 }
 </script>
@@ -114,15 +150,23 @@ function onLogAuxClick(event) {
     <div class="console-bar">
       <span>{{ t("logsOutput", { name: projectName }) }}</span>
       <div class="console-bar-actions">
-        <span class="console-hint">{{ t("logsOpenLinkHint") }}</span>
-        <a-button type="link" size="small" class="clear-btn" @click="emit('clear')">
+        <input
+          v-model="search"
+          type="search"
+          class="log-search"
+          :placeholder="t('logSearch')"
+          spellcheck="false"
+          autocomplete="off"
+        />
+        <button type="button" class="console-text-btn" @click="emit('clear')">
           {{ t("clear") }}
-        </a-button>
+        </button>
       </div>
     </div>
+
     <div ref="logEl" class="console-body" @scroll="onLogScroll">
       <pre
-        v-if="lines.length"
+        v-if="filteredLines.length"
         class="console-log"
         :class="{ wrap: logWrap }"
         v-html="logHtml"
@@ -131,14 +175,128 @@ function onLogAuxClick(event) {
       ></pre>
       <div v-else class="muted">{{ t("logsEmpty") }}</div>
     </div>
+
+    <div
+      v-if="summaryVisible"
+      class="run-summary"
+      :class="runSummary.success ? 'ok' : 'fail'"
+    >
+      <div class="run-summary-main">
+        <strong>
+          {{
+            runSummary.success
+              ? t("runSummaryOk")
+              : t("runSummaryFail", { code: runSummary.exitCode ?? "?" })
+          }}
+        </strong>
+        <span class="run-summary-meta">
+          {{ runSummary.action }} · {{ Math.round((runSummary.durationMs || 0) / 1000) }}s
+        </span>
+        <button type="button" class="console-text-btn run-summary-copy" @click="copySummary">
+          {{ t("runSummaryCopy") }}
+        </button>
+      </div>
+      <ul v-if="runSummary.errorLines?.length" class="run-summary-errors">
+        <li v-for="(line, i) in runSummary.errorLines.slice(0, 3)" :key="i">{{ line }}</li>
+      </ul>
+      <ul v-if="runSummary.hints?.length" class="run-summary-hints">
+        <li v-for="h in runSummary.hints" :key="h.id">{{ h.message }}</li>
+      </ul>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.clear-btn.ant-btn {
-  height: auto;
-  padding: 0 4px;
+.log-search {
+  width: 132px;
+  height: 22px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid #2a3834;
+  border-radius: var(--radius);
+  background: #111a18;
+  color: #d5e3dd;
+  font: 12px/22px ui-monospace, SFMono-Regular, Menlo, monospace;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.log-search::placeholder {
+  color: #7f908a;
+}
+.log-search:focus {
+  border-color: #3d524c;
+}
+.log-search::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.console-text-btn {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  color: #7dd3c0;
+  font: inherit;
   font-size: 12px;
   line-height: 1.2;
+  cursor: pointer;
+}
+.console-text-btn:hover {
+  color: #99f6e4;
+}
+
+.run-summary {
+  flex: none;
+  padding: 8px 10px;
+  border-top: 1px solid #243330;
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  animation: run-summary-in 0.18s ease-out;
+}
+.run-summary.fail {
+  background: #2a1616;
+  color: #fecaca;
+}
+.run-summary.ok {
+  background: #14241c;
+  color: #bbf7d0;
+}
+.run-summary-main {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.run-summary-meta {
+  opacity: 0.75;
+}
+.run-summary-copy {
+  margin-left: auto;
+}
+.run-summary.fail .run-summary-copy {
+  color: #fca5a5;
+}
+.run-summary.ok .run-summary-copy {
+  color: #86efac;
+}
+.run-summary-errors,
+.run-summary-hints {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+.run-summary-hints {
+  color: #fde68a;
+}
+
+@keyframes run-summary-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

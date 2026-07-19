@@ -11,6 +11,12 @@ pub mod process_kill;
 pub mod which;
 pub mod net;
 pub mod metrics;
+pub mod terminal;
+pub mod editor;
+pub mod external_tools;
+pub mod git;
+#[cfg(target_os = "macos")]
+pub mod macos_titlebar;
 
 // 供 process / toolchains / settings 逐步迁入时调用；过渡期允许未直接引用
 #[allow(unused_imports)]
@@ -22,3 +28,7 @@ pub use which::{enriched_path, find_executable, find_executable_with_bins};
 #[allow(unused_imports)]
 pub use net::{list_listening_ports, list_listening_ports_tree};
 pub use metrics::{sample_process, ProcessMetrics};
+pub use terminal::open_in_terminal;
+pub use editor::open_in_editor;
+pub use external_tools::detect_external_tools;
+pub use git::workspace_git_status;

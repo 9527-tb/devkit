@@ -3,11 +3,11 @@
   对应 DESIGN.md §8 panel.deps
 -->
 <script setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+import { message } from "antdv-next";
 import { createTranslator } from "../../../i18n/index.js";
-import { locale } from "../../../stores/settings.js";
-
-// DONE(fe-panel-deps): table children 树结构 + 圆角与日志一致 — DESIGN §8
+import { locale, previewMode } from "../../../stores/settings.js";
 
 const props = defineProps({
   project: { type: Object, required: true },
@@ -19,6 +19,43 @@ const props = defineProps({
 defineEmits(["refresh"]);
 
 const t = createTranslator(locale);
+
+const outdatedLoading = ref(false);
+const outdatedRows = ref([]);
+const showOutdated = ref(false);
+
+const isNodeProject = computed(() => props.project?.kind === "node");
+
+const outdatedColumns = computed(() => [
+  { title: t("colDependency"), dataIndex: "name", key: "name" },
+  { title: t("outdatedCurrent"), dataIndex: "current", key: "current", width: 100 },
+  { title: t("outdatedWanted"), dataIndex: "wanted", key: "wanted", width: 100 },
+  { title: t("outdatedLatest"), dataIndex: "latest", key: "latest", width: 100 },
+]);
+
+async function checkOutdated() {
+  if (!isNodeProject.value) return;
+  if (previewMode.value) {
+    message.info(t("previewNeedTauri"));
+    return;
+  }
+  outdatedLoading.value = true;
+  showOutdated.value = true;
+  try {
+    outdatedRows.value = await invoke("check_outdated_deps", {
+      path: props.project.path,
+      kind: props.project.kind,
+    });
+    if (!outdatedRows.value.length) {
+      message.success(t("outdatedNone"));
+    }
+  } catch (error) {
+    message.error(String(error));
+    outdatedRows.value = [];
+  } finally {
+    outdatedLoading.value = false;
+  }
+}
 
 const title = computed(() => {
   if (props.project.kind === "maven") return t("depsTitleMaven");
@@ -57,6 +94,15 @@ function parseLegacyCount(version) {
       <span>{{ title }}</span>
       <div class="dep-bar-actions">
         <button
+          v-if="isNodeProject"
+          type="button"
+          class="dep-link"
+          :disabled="outdatedLoading"
+          @click="checkOutdated"
+        >
+          {{ outdatedLoading ? t("refreshing") : t("checkOutdated") }}
+        </button>
+        <button
           type="button"
           class="dep-link"
           :disabled="loading"
@@ -66,6 +112,18 @@ function parseLegacyCount(version) {
         </button>
         <span class="dep-count">{{ t("depItems", { n: count }) }}</span>
       </div>
+    </div>
+    <p v-if="showOutdated && isNodeProject" class="outdated-note">{{ t("outdatedReadOnly") }}</p>
+    <div v-if="showOutdated && outdatedRows.length" class="outdated-wrap">
+      <a-table
+        class="dep-table"
+        size="small"
+        :pagination="false"
+        :columns="outdatedColumns"
+        :data-source="outdatedRows"
+        row-key="name"
+        :locale="{ emptyText: t('outdatedEmpty') }"
+      />
     </div>
     <div class="dep-table-wrap">
       <a-table
@@ -192,5 +250,19 @@ function parseLegacyCount(version) {
   color: var(--muted, #6b7a76);
   font-size: 10px;
   font-weight: 700;
+}
+.outdated-note {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--muted, #6b7a76);
+  background: var(--input-bg, #f4f8f6);
+  border-bottom: 1px solid var(--line-soft, #eef3f0);
+}
+.outdated-wrap {
+  flex: none;
+  max-height: 200px;
+  overflow: auto;
+  border-bottom: 1px solid var(--line, #d7e0dc);
 }
 </style>

@@ -64,55 +64,6 @@ body {
   overflow: hidden;
 }
 
-.topbar {
-  position: relative;
-  z-index: 50;
-  flex: none;
-  height: 48px;
-  padding: 0 8px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 8px;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, white);
-  backdrop-filter: blur(12px);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-
-.brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius);
-  object-fit: cover;
-  flex-shrink: 0;
-  display: block;
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.15;
-  min-width: 0;
-}
-
-.brand-text strong {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-.brand-text small {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 500;
-}
-
 .workspace-picker {
   display: flex;
   align-items: center;
@@ -157,16 +108,6 @@ body {
   font-weight: 500;
 }
 
-.top-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.settings-icon-btn {
-  width: 32px !important;
-  padding: 0 !important;
-  justify-content: center;
-}
 
 /* 侧栏 + 主区（Tab 在主区顶部，不对齐顶栏通栏） */
 .body {
@@ -284,11 +225,13 @@ body {
 }
 .console-bar {
   flex: none;
-  height: 32px;
-  padding: 0 10px;
+  min-height: 32px;
+  padding: 4px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
   background: #1a2623;
   color: #aebdb7;
   font-size: 12px;

@@ -2,12 +2,13 @@
   端口管理面板（tools/ports 专用）。
 -->
 <script setup>
-import { computed, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { message, Modal } from "antdv-next";
 import { SearchOutlined } from "@antdv-next/icons";
 import { lookupPort, killPid } from "./api.js";
 import { createTranslator } from "../../../i18n/index.js";
 import { locale } from "../../../stores/settings.js";
+import { toolsQuery } from "../../../stores/tools.js";
 
 const t = createTranslator(locale);
 const portInput = ref(null);
@@ -93,6 +94,17 @@ function onKill(row) {
     },
   });
 }
+
+watch(
+  () => toolsQuery.value.port,
+  (port) => {
+    if (port != null && String(port).trim()) {
+      portInput.value = Number(port) || port;
+      onQuery();
+    }
+  },
+  { immediate: true },
+);
 </script>
 
 <template>

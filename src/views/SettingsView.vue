@@ -5,58 +5,35 @@
 -->
 <script setup>
 import { computed } from "vue";
-import { LeftOutlined } from "@antdv-next/icons";
 import { createTranslator } from "../i18n/index.js";
-import { locale, settingsLoading, settingsCat } from "../stores/settings.js";
-import { useSettings } from "../features/settings/useSettings.js";
+import { locale, settingsLoading, settingsCat, SETTINGS_CAT } from "../stores/settings.js";
 import SettingsNav from "../features/settings/SettingsNav.vue";
 import SettingsGeneral from "../features/settings/SettingsGeneral.vue";
 import SettingsToolchain from "../features/settings/SettingsToolchain.vue";
+import "../styles/settings-layout.css";
 
-// TODO(fe-settings-view): DONE — 从 App.vue 迁出设置页布局与导航切换 — DESIGN §12.2
-
-const appLogo = "/logo.png";
 const t = createTranslator(locale);
-const { closeSettings } = useSettings();
-
-const showGeneral = computed(() => settingsCat.value === "general");
+const showGeneral = computed(() => settingsCat.value === SETTINGS_CAT.GENERAL);
 </script>
 
 <template>
   <a-config-provider component-size="small">
-    <header class="topbar">
-      <div class="brand">
-        <img class="brand-mark" :src="appLogo" alt="" />
-        <div class="brand-text">
-          <span>{{ t("settings") }}</span>
-          <small>{{ t("settingsFile") }}</small>
-        </div>
-      </div>
-      <div class="settings-top-actions">
-        <a-tag color="orange" class="settings-auto-tag">{{ t("autoSave") }}</a-tag>
-        <a-button @click="closeSettings">
-          <template #icon><LeftOutlined /></template>
-          {{ t("back") }}
-        </a-button>
-      </div>
-    </header>
+    <div class="settings-page">
+      <div class="settings-layout">
+        <SettingsNav />
 
-    <div class="settings-layout">
-      <SettingsNav />
-
-      <a-spin :spinning="settingsLoading" class="settings-main-spin">
-        <main class="settings-main">
-          <SettingsGeneral v-show="showGeneral" />
-          <SettingsToolchain />
-        </main>
-      </a-spin>
+        <a-spin :spinning="settingsLoading" class="settings-main-spin">
+          <main class="settings-main">
+            <SettingsGeneral v-show="showGeneral" />
+            <SettingsToolchain />
+          </main>
+        </a-spin>
+      </div>
     </div>
   </a-config-provider>
 </template>
 
 <style>
-@import "../styles/settings-layout.css";
-
 .theme-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -173,5 +150,15 @@ const showGeneral = computed(() => settingsCat.value === "general");
 .runtime-add .ant-input {
   flex: 1;
   min-width: 0;
+}
+</style>
+
+<style scoped>
+.settings-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 </style>

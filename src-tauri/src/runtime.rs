@@ -24,6 +24,21 @@ pub struct RuntimeEntry {
 pub struct GeneralSettings {
     #[serde(default = "default_true")]
     pub log_wrap: bool,
+    /// 任务完成时系统通知（默认开启）
+    #[serde(default = "default_true")]
+    pub notify_on_task_done: bool,
+    /// 扫描后自动环境体检（默认开启）
+    #[serde(default = "default_true")]
+    pub health_check_on_scan: bool,
+    /// 优先使用工作区 `.devkit/workspace.json` 中的可分享配置
+    #[serde(default = "default_true")]
+    pub prefer_workspace_config: bool,
+    /// 默认编辑器：cursor / code / idea 等（空=探测本机默认）
+    #[serde(default)]
+    pub editor_command: String,
+    /// 默认控制台：terminal / iterm / warp / wt / cmd 等（空=探测本机默认）
+    #[serde(default)]
+    pub terminal_app: String,
     /// teal | ocean | forest | slate | amber | rose
     #[serde(default = "default_theme")]
     pub theme: String,
@@ -48,6 +63,11 @@ impl Default for GeneralSettings {
     fn default() -> Self {
         Self {
             log_wrap: true,
+            notify_on_task_done: true,
+            health_check_on_scan: true,
+            prefer_workspace_config: true,
+            editor_command: String::new(),
+            terminal_app: String::new(),
             theme: default_theme(),
             locale: default_locale(),
             action_button_count: default_action_button_count(),

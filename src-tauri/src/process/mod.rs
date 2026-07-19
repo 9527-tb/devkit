@@ -3,9 +3,11 @@
 //! 对应 DESIGN.md §12.3。
 //! DONE(rs-instance-key): 进程用 projectKey；日志按项目追加（path::kind）— DESIGN §16.1
 
+pub mod summary;
+
 use crate::core::project_ref::make_project_key;
 use crate::core::scan_engine::{project_at, resolve_command};
-use crate::models::{LogEvent, ProcessView};
+use crate::models::{LogEvent, PipelineStep, PipelineStepEvent, ProcessView, RunSummary};
 use crate::runtime::{self, RuntimeEntry, RuntimeSettings};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
@@ -14,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 /// 项目日志键：同一 path+kind 下命令日志追加，不因进程结束/换 pid 清空。
@@ -26,11 +29,16 @@ pub struct Running {
     pub action: String,
     pub port: Option<String>,
     pub kind: String,
+    pub started_at: Instant,
 }
 
 pub struct AppState {
     pub processes: Arc<Mutex<HashMap<String, Vec<Running>>>>,
     pub logs: Arc<Mutex<HashMap<String, Vec<String>>>>,
+    /// 每个 projectKey 最近一次运行摘要
+    pub last_run_summaries: Arc<Mutex<HashMap<String, RunSummary>>>,
+    /// 每个 projectKey 最近观测到的端口（供体检弱检查）
+    pub last_ports: Arc<Mutex<HashMap<String, String>>>,
 }
 
 impl Default for AppState {
@@ -38,31 +46,44 @@ impl Default for AppState {
         Self {
             processes: Arc::new(Mutex::new(HashMap::new())),
             logs: Arc::new(Mutex::new(HashMap::new())),
+            last_run_summaries: Arc::new(Mutex::new(HashMap::new())),
+            last_ports: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
 
+/// 具体监听端口（1–65535）。`0` 表示随机分配，启动前不可用。
+pub fn concrete_listen_port(raw: &str) -> Option<u16> {
+    let n: u16 = raw.trim().parse().ok()?;
+    if n == 0 {
+        None
+    } else {
+        Some(n)
+    }
+}
+
 /// 仅从明确的端口参数推断；禁止把 Maven `-p profile` 当成端口。
+/// `port=0`（随机端口）视为未指定。
 fn port_from_command(command: &str) -> Option<String> {
     let parts: Vec<_> = command.split_whitespace().collect();
     for (i, p) in parts.iter().enumerate() {
         if *p == "--port" {
             if let Some(v) = parts.get(i + 1) {
                 if v.chars().all(|c| c.is_ascii_digit()) {
-                    return Some((*v).to_string());
+                    return concrete_listen_port(v).map(|n| n.to_string());
                 }
             }
         } else if let Some(rest) = p.strip_prefix("--port=") {
             if rest.chars().all(|c| c.is_ascii_digit()) {
-                return Some(rest.to_string());
+                return concrete_listen_port(rest).map(|n| n.to_string());
             }
         } else if let Some(rest) = p.strip_prefix("-Dserver.port=") {
             if rest.chars().all(|c| c.is_ascii_digit()) {
-                return Some(rest.to_string());
+                return concrete_listen_port(rest).map(|n| n.to_string());
             }
         } else if let Some(rest) = p.strip_prefix("PORT=") {
             if rest.chars().all(|c| c.is_ascii_digit()) {
-                return Some(rest.to_string());
+                return concrete_listen_port(rest).map(|n| n.to_string());
             }
         }
     }
@@ -81,7 +102,7 @@ pub fn parse_port_from_line(line: &str) -> Option<String> {
         if let Ok(re) = Regex::new(pat) {
             if let Some(caps) = re.captures(line) {
                 if let Some(m) = caps.get(1) {
-                    return Some(m.as_str().to_string());
+                    return concrete_listen_port(m.as_str()).map(|n| n.to_string());
                 }
             }
         }
@@ -151,17 +172,22 @@ fn append_log(
 
 fn update_port_from_line(
     processes: &Arc<Mutex<HashMap<String, Vec<Running>>>>,
+    last_ports: &Arc<Mutex<HashMap<String, String>>>,
     project_key: &str,
     pid: u32,
     line: &str,
 ) {
     if let Some(port) = parse_port_from_line(line) {
+        // 仅记录启动后解析到的具体端口；0/随机端口不写入「常用端口」
         if let Ok(mut map) = processes.lock() {
             if let Some(items) = map.get_mut(project_key) {
                 if let Some(item) = items.iter_mut().find(|r| r.child.id() == pid) {
-                    item.port = Some(port);
+                    item.port = Some(port.clone());
                 }
             }
+        }
+        if let Ok(mut ports) = last_ports.lock() {
+            ports.insert(project_key.to_string(), port);
         }
     }
 }
@@ -170,13 +196,14 @@ fn emit_line(
     logs: &Arc<Mutex<HashMap<String, Vec<String>>>>,
     app: &AppHandle,
     processes: &Arc<Mutex<HashMap<String, Vec<Running>>>>,
+    last_ports: &Arc<Mutex<HashMap<String, String>>>,
     path: &str,
     kind: &str,
     project_key: &str,
     pid: u32,
     line: String,
 ) {
-    update_port_from_line(processes, project_key, pid, &strip_ansi(&line));
+    update_port_from_line(processes, last_ports, project_key, pid, &strip_ansi(&line));
     append_log(logs, app, path, kind, pid, line);
 }
 
@@ -189,6 +216,7 @@ fn spawn_log_reader<R: Read + Send + 'static>(
     kind: String,
     project_key: String,
     processes: Arc<Mutex<HashMap<String, Vec<Running>>>>,
+    last_ports: Arc<Mutex<HashMap<String, String>>>,
     pid: u32,
 ) {
     thread::spawn(move || {
@@ -205,6 +233,7 @@ fn spawn_log_reader<R: Read + Send + 'static>(
                             &logs,
                             &app,
                             &processes,
+                            &last_ports,
                             &path,
                             &kind,
                             &project_key,
@@ -224,6 +253,7 @@ fn spawn_log_reader<R: Read + Send + 'static>(
                                     &logs,
                                     &app,
                                     &processes,
+                                    &last_ports,
                                     &path,
                                     &kind,
                                     &project_key,
@@ -241,6 +271,7 @@ fn spawn_log_reader<R: Read + Send + 'static>(
                                     &logs,
                                     &app,
                                     &processes,
+                                    &last_ports,
                                     &path,
                                     &kind,
                                     &project_key,
@@ -503,6 +534,14 @@ pub fn run_action(
     let project_key = make_project_key(&path, &kind);
     let logs = state.logs.clone();
     let processes = state.processes.clone();
+    let last_ports = state.last_ports.clone();
+    if let Some(ref p) = port {
+        if concrete_listen_port(p).is_some() {
+            if let Ok(mut ports) = last_ports.lock() {
+                ports.insert(project_key.clone(), p.clone());
+            }
+        }
+    }
     // 每次执行前追加分割线，日志跨命令保留
     append_log(
         &logs,
@@ -533,6 +572,7 @@ pub fn run_action(
             kind.clone(),
             project_key.clone(),
             processes.clone(),
+            last_ports.clone(),
             pid,
         );
     }
@@ -545,6 +585,7 @@ pub fn run_action(
             kind.clone(),
             project_key.clone(),
             processes.clone(),
+            last_ports.clone(),
             pid,
         );
     }
@@ -555,6 +596,7 @@ pub fn run_action(
         port: port.clone(),
         kind: kind.clone(),
     };
+    let started_at = Instant::now();
     state
         .processes
         .lock()
@@ -566,39 +608,47 @@ pub fn run_action(
             action: view.action.clone(),
             port: view.port.clone(),
             kind: kind.clone(),
+            started_at,
         });
 
     // Ensure the frontend sees a completion marker even if the process finishes quickly.
     let logs_done = state.logs.clone();
     let procs_done = state.processes.clone();
+    let summaries_done = state.last_run_summaries.clone();
+    let ports_done = state.last_ports.clone();
     let app_done = app.clone();
-    let path_done = project_key;
+    let path_done = project_key.clone();
     let log_path = path.clone();
     let log_kind = kind.clone();
+    let action_done = action.clone();
     thread::spawn(move || {
         // Poll until this pid disappears or exits.
         loop {
             thread::sleep(std::time::Duration::from_millis(400));
-            let mut finished = None;
+            let mut finished: Option<(Option<i32>, u64, Option<String>)> = None;
             if let Ok(mut map) = procs_done.lock() {
                 if let Some(items) = map.get_mut(&path_done) {
                     if let Some(pos) = items.iter_mut().position(|r| r.child.id() == pid) {
                         match items[pos].child.try_wait() {
                             Ok(Some(status)) => {
                                 let code = status.code();
+                                let duration_ms = items[pos].started_at.elapsed().as_millis() as u64;
+                                let port = items[pos].port.clone();
                                 items.remove(pos);
                                 if items.is_empty() {
                                     map.remove(&path_done);
                                 }
-                                finished = Some(code);
+                                finished = Some((code, duration_ms, port));
                             }
                             Ok(None) => {}
                             Err(_) => {
+                                let duration_ms = items[pos].started_at.elapsed().as_millis() as u64;
+                                let port = items[pos].port.clone();
                                 items.remove(pos);
                                 if items.is_empty() {
                                     map.remove(&path_done);
                                 }
-                                finished = Some(None);
+                                finished = Some((None, duration_ms, port));
                             }
                         }
                     } else {
@@ -609,19 +659,223 @@ pub fn run_action(
                     break;
                 }
             }
-            if let Some(code) = finished {
+            if let Some((code, duration_ms, port)) = finished {
                 let msg = match code {
                     Some(0) => "[DevKit] 进程已结束 (exit 0)".to_string(),
                     Some(c) => format!("[DevKit] 进程已结束 (exit {c})"),
                     None => "[DevKit] 进程已结束".into(),
                 };
                 append_log(&logs_done, &app_done, &log_path, &log_kind, pid, msg);
+
+                let log_lines = {
+                    let key = make_log_key(&log_path, &log_kind);
+                    logs_done
+                        .lock()
+                        .ok()
+                        .and_then(|m| m.get(&key).cloned())
+                        .unwrap_or_default()
+                };
+                let summary = summary::build_summary(
+                    path_done.clone(),
+                    normalize_path(&log_path),
+                    log_kind.clone(),
+                    pid,
+                    action_done.clone(),
+                    code,
+                    duration_ms,
+                    port.clone(),
+                    &log_lines,
+                );
+                if let Some(ref p) = port {
+                    if let Ok(mut ports) = ports_done.lock() {
+                        ports.insert(path_done.clone(), p.clone());
+                    }
+                }
+                if let Ok(mut map) = summaries_done.lock() {
+                    map.insert(path_done.clone(), summary.clone());
+                }
+                let _ = app_done.emit("run-finished", summary);
                 break;
             }
         }
     });
 
     Ok(view)
+}
+
+/// 最近一次运行摘要（按 projectKey）。
+pub fn get_last_run_summary(state: &AppState, project_key: String) -> Option<RunSummary> {
+    state
+        .last_run_summaries
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&project_key).cloned())
+}
+
+/// 等待指定 pid 被收尸线程移除，并读取摘要中的 exit code（不与收尸竞争 try_wait）。
+fn wait_for_pid(state: &AppState, project_key: &str, pid: u32) -> Option<i32> {
+    loop {
+        let still_running = state
+            .processes
+            .lock()
+            .ok()
+            .map(|m| {
+                m.get(project_key)
+                    .map(|items| items.iter().any(|r| r.child.id() == pid))
+                    .unwrap_or(false)
+            })
+            .unwrap_or(false);
+        if !still_running {
+            for _ in 0..40 {
+                if let Ok(summaries) = state.last_run_summaries.lock() {
+                    if let Some(s) = summaries.get(project_key) {
+                        if s.pid == pid {
+                            return s.exit_code;
+                        }
+                    }
+                }
+                thread::sleep(std::time::Duration::from_millis(50));
+            }
+            return None;
+        }
+        thread::sleep(std::time::Duration::from_millis(300));
+    }
+}
+
+/// 串行执行流水线步骤；`stopOnError` 时非 0 退出则中止。
+pub fn run_pipeline(
+    app: AppHandle,
+    state: &AppState,
+    path: String,
+    kind: String,
+    steps: Vec<PipelineStep>,
+) -> Result<Vec<RunSummary>, String> {
+    if steps.is_empty() {
+        return Err("流水线步骤为空".into());
+    }
+    let project_key = make_project_key(&path, &kind);
+    let mut summaries = Vec::new();
+
+    for (index, step) in steps.iter().enumerate() {
+        let _ = app.emit(
+            "pipeline-step",
+            PipelineStepEvent {
+                project_key: project_key.clone(),
+                path: path.clone(),
+                kind: kind.clone(),
+                index,
+                action: step.action.clone(),
+                phase: "started".into(),
+                exit_code: None,
+                error: None,
+            },
+        );
+        append_log(
+            &state.logs,
+            &app,
+            &path,
+            &kind,
+            0,
+            format!(
+                "[DevKit] ── 流水线步骤 {}/{}: {} ──",
+                index + 1,
+                steps.len(),
+                step.action
+            ),
+        );
+
+        let view = match run_action(
+            app.clone(),
+            state,
+            path.clone(),
+            step.action.clone(),
+            kind.clone(),
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = app.emit(
+                    "pipeline-step",
+                    PipelineStepEvent {
+                        project_key: project_key.clone(),
+                        path: path.clone(),
+                        kind: kind.clone(),
+                        index,
+                        action: step.action.clone(),
+                        phase: "aborted".into(),
+                        exit_code: None,
+                        error: Some(e.clone()),
+                    },
+                );
+                return Err(e);
+            }
+        };
+
+        let exit_code = wait_for_pid(state, &project_key, view.pid);
+        // 等收尸线程写入摘要
+        thread::sleep(std::time::Duration::from_millis(200));
+        let summary = get_last_run_summary(state, project_key.clone()).unwrap_or_else(|| {
+            summary::build_summary(
+                project_key.clone(),
+                normalize_path(&path),
+                kind.clone(),
+                view.pid,
+                step.action.clone(),
+                exit_code,
+                0,
+                view.port.clone(),
+                &[],
+            )
+        });
+        summaries.push(summary.clone());
+
+        let failed = exit_code != Some(0);
+        let _ = app.emit(
+            "pipeline-step",
+            PipelineStepEvent {
+                project_key: project_key.clone(),
+                path: path.clone(),
+                kind: kind.clone(),
+                index,
+                action: step.action.clone(),
+                phase: "finished".into(),
+                exit_code,
+                error: None,
+            },
+        );
+
+        if failed && step.stop_on_error {
+            for (skip_i, skip) in steps.iter().enumerate().skip(index + 1) {
+                let _ = app.emit(
+                    "pipeline-step",
+                    PipelineStepEvent {
+                        project_key: project_key.clone(),
+                        path: path.clone(),
+                        kind: kind.clone(),
+                        index: skip_i,
+                        action: skip.action.clone(),
+                        phase: "skipped".into(),
+                        exit_code: None,
+                        error: Some("上一步失败已中止".into()),
+                    },
+                );
+            }
+            append_log(
+                &state.logs,
+                &app,
+                &path,
+                &kind,
+                view.pid,
+                format!(
+                    "[DevKit] 流水线中止于步骤 {}（{}）",
+                    index + 1,
+                    step.action
+                ),
+            );
+            break;
+        }
+    }
+
+    Ok(summaries)
 }
 
 fn process_keys_for(path: &str, kind: &str) -> Vec<String> {
@@ -812,7 +1066,9 @@ pub fn running_processes(state: &AppState) -> HashMap<String, Vec<ProcessView>> 
             }
             // 优先 OS 真实监听（含子进程）；日志/命令推断仅作无监听时的兜底
             if let Some(real) = port_for_pid(item.child.id()) {
-                item.port = Some(real);
+                if concrete_listen_port(&real).is_some() {
+                    item.port = Some(real);
+                }
             }
         }
         let views: Vec<ProcessView> = items

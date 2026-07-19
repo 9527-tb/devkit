@@ -1,10 +1,8 @@
 <script setup>
 import { computed, ref } from "vue";
-import Topbar from "../features/workbench/Topbar.vue";
 import Sidebar from "../features/workbench/Sidebar.vue";
 import ProjectTabs from "../features/workbench/ProjectTabs.vue";
 import ProjectHeader from "../features/workbench/ProjectHeader.vue";
-import ActionBar from "../features/workbench/ActionBar.vue";
 import CloseTabConfirm from "../features/workbench/CloseTabConfirm.vue";
 import LogsPanel from "../features/workbench/panels/LogsPanel.vue";
 import DepsPanel from "../features/workbench/panels/DepsPanel.vue";
@@ -13,21 +11,12 @@ import { useWorkbench } from "../features/workbench/useWorkbench.js";
 import { logWrap } from "../stores/settings.js";
 import "../features/workbench/workbench.css";
 
-// DONE(fe-workbench-view): 布局对齐原型 — 顶栏 / 侧栏+主区；Tab 在主区顶部
-
 const props = defineProps({
   t: { type: Function, required: true },
 });
-const emit = defineEmits(["open-settings", "open-tools"]);
 
 const {
-  root,
   projects,
-  loading,
-  previewMode,
-  workspaceHistoryMenu,
-  dropdownPopupContainer,
-  chooseDirectory,
   scan,
   openTabs,
   activeTabKey,
@@ -53,6 +42,7 @@ const {
   activePanel,
   switchPanel,
   logs,
+  currentRunSummary,
   clearLogs,
   dependencyTree,
   dependencyCount,
@@ -66,8 +56,10 @@ const {
   confirmCloseTab,
   cancelCloseConfirm,
   onTabContextAction,
+  openInEditor,
+  openInTerminal,
   t,
-} = useWorkbench(props.t, emit);
+} = useWorkbench(props.t);
 
 const monitorRef = ref(null);
 const selectedProcess = computed(
@@ -84,19 +76,6 @@ function refreshMonitor() {
 
 <template>
   <div class="workbench">
-    <Topbar
-      :t="t"
-      :root="root"
-      :loading="loading"
-      :preview-mode="previewMode"
-      :workspace-history-menu="workspaceHistoryMenu"
-      :dropdown-popup-container="dropdownPopupContainer"
-      @choose-directory="chooseDirectory"
-      @scan="scan"
-      @open-settings="emit('open-settings')"
-      @open-tools="emit('open-tools')"
-    />
-
     <div class="body">
       <Sidebar
         :t="t"
@@ -122,26 +101,26 @@ function refreshMonitor() {
 
         <template v-if="current">
           <div class="main-body">
-            <ProjectHeader :project="current" :runtime-label="runtimePill">
-              <template #actions>
-                <ActionBar
-                  :actions="actionList"
-                  :display-action="displayAction"
-                  :has-running="!!currentProcesses.length"
-                  :show-instance-select="showInstanceSelect"
-                  :selected-pid="selectedPid"
-                  :instance-options="instanceOptions"
-                  :stop-label="t('stop')"
-                  @update:selected-pid="selectedPid = $event"
-                  @run="(action) => run(current, action)"
-                  @stop="
-                    showInstanceSelect && selectedPid
-                      ? stopInstance(current, selectedPid)
-                      : stop(current)
-                  "
-                />
-              </template>
-            </ProjectHeader>
+            <ProjectHeader
+              :project="current"
+              :t="t"
+              :show-instance-select="showInstanceSelect"
+              :selected-pid="selectedPid"
+              :instance-options="instanceOptions"
+              :actions="actionList"
+              :display-action="displayAction"
+              :has-running="!!currentProcesses.length"
+              :stop-label="t('stop')"
+              @update:selected-pid="selectedPid = $event"
+              @open-editor="openInEditor(current)"
+              @open-terminal="openInTerminal(current)"
+              @run="(action) => run(current, action)"
+              @stop="
+                showInstanceSelect && selectedPid
+                  ? stopInstance(current, selectedPid)
+                  : stop(current)
+              "
+            />
 
             <div class="panels">
               <div class="tabs">
@@ -189,6 +168,7 @@ function refreshMonitor() {
                 :t="t"
                 :project-name="current.name"
                 :lines="logs"
+                :run-summary="currentRunSummary"
                 @clear="clearLogs"
               />
               <DepsPanel
@@ -229,3 +209,4 @@ function refreshMonitor() {
     />
   </div>
 </template>
+

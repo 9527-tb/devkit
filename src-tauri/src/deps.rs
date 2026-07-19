@@ -1,4 +1,4 @@
-use crate::models::Dependency;
+use crate::models::{Dependency, OutdatedDependency};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
@@ -225,4 +225,138 @@ pub fn maven_dependency_tree(project_path: &Path) -> Result<Vec<Dependency>, Str
         return Ok(fallback);
     }
     Ok(tree)
+}
+
+/// Node 依赖 outdated（只读）。使用设置中的包管理器：`npm outdated --json` 等。
+pub fn node_outdated(project_path: &Path, package_manager: &str) -> Result<Vec<OutdatedDependency>, String> {
+    let pm = match package_manager.trim().to_ascii_lowercase().as_str() {
+        "pnpm" => "pnpm",
+        "yarn" => "yarn",
+        _ => "npm",
+    };
+    let bin = crate::platform::find_executable(pm)
+        .ok_or_else(|| format!("未找到包管理器 `{pm}`"))?;
+
+    let mut cmd = Command::new(&bin);
+    cmd.current_dir(project_path);
+    cmd.env("PATH", crate::platform::enriched_path());
+    match pm {
+        "pnpm" => {
+            cmd.args(["outdated", "--format", "json"]);
+        }
+        "yarn" => {
+            // yarn classic: yarn outdated --json 多行；改用 npm 风格若可用
+            cmd.args(["outdated", "--json"]);
+        }
+        _ => {
+            cmd.args(["outdated", "--json"]);
+        }
+    }
+
+    let output = cmd
+        .output()
+        .map_err(|e| format!("执行 {pm} outdated 失败: {e}"))?;
+    // npm outdated：有过期时 exit 1，stdout 仍是 JSON
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let text = if stdout.trim().is_empty() {
+        stderr.to_string()
+    } else {
+        stdout.to_string()
+    };
+    if text.trim().is_empty() {
+        return Ok(vec![]);
+    }
+
+    parse_npm_outdated_json(&text).or_else(|_| {
+        // 非 JSON 时给出可读错误
+        let hint = text.lines().take(8).collect::<Vec<_>>().join("\n");
+        Err(format!("{pm} outdated 失败:\n{hint}"))
+    })
+}
+
+fn parse_npm_outdated_json(text: &str) -> Result<Vec<OutdatedDependency>, String> {
+    let value: Value = serde_json::from_str(text.trim()).map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    match value {
+        Value::Object(map) => {
+            // npm: { "pkg": { current, wanted, latest, location? } }
+            // 跳过 pnpm 的元数据字段
+            for (name, info) in map {
+                if name.starts_with('_') {
+                    continue;
+                }
+                let Some(obj) = info.as_object() else {
+                    continue;
+                };
+                let current = obj
+                    .get("current")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let wanted = obj
+                    .get("wanted")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let latest = obj
+                    .get("latest")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if current.is_empty() && latest.is_empty() {
+                    continue;
+                }
+                let location = obj
+                    .get("location")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                out.push(OutdatedDependency {
+                    name,
+                    current,
+                    wanted,
+                    latest,
+                    location,
+                });
+            }
+        }
+        Value::Array(arr) => {
+            for item in arr {
+                let Some(obj) = item.as_object() else {
+                    continue;
+                };
+                let name = obj
+                    .get("name")
+                    .or_else(|| obj.get("packageName"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                out.push(OutdatedDependency {
+                    name,
+                    current: obj
+                        .get("current")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .into(),
+                    wanted: obj
+                        .get("wanted")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .into(),
+                    latest: obj
+                        .get("latest")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .into(),
+                    location: None,
+                });
+            }
+        }
+        _ => return Err("无法解析 outdated JSON".into()),
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
 }

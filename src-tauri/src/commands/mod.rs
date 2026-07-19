@@ -9,9 +9,15 @@
 use crate::core::caps;
 use crate::core::registry::ProviderRegistry;
 use crate::core::scan_engine;
-use crate::models::{Dependency, ProcessView, Project};
+use crate::deploy::targets::ssh::{SshUploadRequest, SshUploadResult};
+use crate::models::{
+    ActionPrefs, Dependency, GitStatus, HealthReport, HttpProbeResult, OutdatedDependency,
+    PipelineStep, ProcessView, Project, RunSummary,
+};
+use crate::workspace_config::WorkspaceConfig;
 use crate::process::{self, AppState};
 use crate::providers::maven;
+use crate::runtime;
 use std::collections::HashMap;
 use std::path::Path;
 use tauri::{AppHandle, State};
@@ -101,6 +107,118 @@ pub fn clear_logs(state: State<AppState>, path: String, kind: String) -> Result<
 }
 
 #[tauri::command]
+pub fn get_last_run_summary(
+    state: State<AppState>,
+    project_key: String,
+) -> Option<RunSummary> {
+    process::get_last_run_summary(state.inner(), project_key)
+}
+
+#[tauri::command]
+pub fn run_pipeline(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+    kind: String,
+    steps: Vec<PipelineStep>,
+) -> Result<Vec<RunSummary>, String> {
+    process::run_pipeline(app, state.inner(), path, kind, steps)
+}
+
+#[tauri::command]
+pub fn workspace_health_check(
+    app: AppHandle,
+    state: State<AppState>,
+    root: String,
+    projects: Vec<Project>,
+) -> Result<HealthReport, String> {
+    crate::health::check_workspace(&app, state.inner(), root, projects)
+}
+
+#[tauri::command]
+pub fn open_in_editor(app: AppHandle, path: String) -> Result<(), String> {
+    let settings = runtime::load_settings(&app)?;
+    let editor = settings.general.editor_command.trim();
+    crate::platform::open_in_editor(
+        &path,
+        if editor.is_empty() {
+            None
+        } else {
+            Some(editor)
+        },
+    )
+}
+
+#[tauri::command]
+pub fn open_in_terminal(app: AppHandle, path: String) -> Result<(), String> {
+    let settings = runtime::load_settings(&app)?;
+    let term = settings.general.terminal_app.trim();
+    crate::platform::open_in_terminal(
+        &path,
+        if term.is_empty() {
+            None
+        } else {
+            Some(term)
+        },
+    )
+}
+
+#[tauri::command]
+pub fn detect_external_tools() -> crate::platform::external_tools::DetectedExternalTools {
+    crate::platform::detect_external_tools()
+}
+
+#[tauri::command]
+pub fn workspace_git_status(root: String) -> GitStatus {
+    crate::platform::workspace_git_status(&root)
+}
+
+#[tauri::command]
+pub fn probe_http(url: String, timeout_ms: Option<u64>) -> HttpProbeResult {
+    crate::probe::probe_http(url, timeout_ms)
+}
+
+#[tauri::command]
+pub fn load_action_prefs() -> Result<ActionPrefs, String> {
+    crate::settings::action_prefs::load_action_prefs()
+}
+
+#[tauri::command]
+pub fn save_action_prefs(prefs: ActionPrefs) -> Result<(), String> {
+    crate::settings::action_prefs::save_action_prefs(&prefs)
+}
+
+#[tauri::command]
+pub fn load_workspace_config(root: String) -> Result<Option<WorkspaceConfig>, String> {
+    crate::workspace_config::load_workspace_config(root)
+}
+
+#[tauri::command]
+pub fn save_workspace_config(root: String, config: WorkspaceConfig) -> Result<(), String> {
+    crate::workspace_config::save_workspace_config(root, config)
+}
+
+#[tauri::command]
+pub fn deploy_ssh_upload(request: SshUploadRequest) -> SshUploadResult {
+    crate::deploy::targets::ssh::ssh_upload(request)
+}
+
+#[tauri::command]
+pub fn check_outdated_deps(
+    app: AppHandle,
+    path: String,
+    kind: String,
+) -> Result<Vec<OutdatedDependency>, String> {
+    let kind = kind.trim().to_ascii_lowercase();
+    if kind != "node" {
+        return Err(format!("暂不支持 {kind} 的 outdated 检查（当前仅 Node）"));
+    }
+    let settings = runtime::load_settings(&app)?;
+    let pm = runtime::normalize_node_package_manager(&settings.node.package_manager);
+    crate::deps::node_outdated(Path::new(&path), pm)
+}
+
+#[tauri::command]
 pub fn refresh_dependencies(path: String, kind: String) -> Result<Vec<Dependency>, String> {
     let project = scan_engine::project_at(Path::new(&path), &kind).ok_or("无法识别项目")?;
     if project.kind == "maven" {
@@ -166,5 +284,3 @@ pub fn list_providers() -> Vec<String> {
 pub fn get_capabilities(kind: String) -> Vec<String> {
     caps::capabilities_for_kind(&kind)
 }
-
-

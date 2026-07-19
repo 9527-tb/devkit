@@ -41,6 +41,11 @@ export function emptySettings() {
   return {
     general: {
       logWrap: true,
+      notifyOnTaskDone: true,
+      healthCheckOnScan: true,
+      preferWorkspaceConfig: true,
+      editorCommand: "",
+      terminalApp: "",
       theme: "teal",
       locale: "zh-CN",
       actionButtonCount: 5,
@@ -69,6 +74,11 @@ export function normalizeSettings(raw) {
   return {
     general: {
       logWrap: raw.general?.logWrap !== false,
+      notifyOnTaskDone: raw.general?.notifyOnTaskDone !== false,
+      healthCheckOnScan: raw.general?.healthCheckOnScan !== false,
+      preferWorkspaceConfig: raw.general?.preferWorkspaceConfig !== false,
+      editorCommand: String(raw.general?.editorCommand || "").trim(),
+      terminalApp: String(raw.general?.terminalApp || "").trim(),
       theme: themeId,
       locale: localeId,
       actionButtonCount: clampActionButtonCount(raw.general?.actionButtonCount),
@@ -103,8 +113,45 @@ export function entryKey(entry) {
 export const settings = ref(emptySettings());
 export const saving = ref(false);
 export const settingsPage = ref(false);
-export const settingsCat = ref("general");
 export const settingsLoading = ref(false);
+
+/** 设置侧栏分类：工具链 × 项目类型（与持久化字段解耦） */
+export const SETTINGS_CAT = {
+  GENERAL: "general",
+  TOOLCHAIN_JDK: "toolchain-jdk",
+  TOOLCHAIN_NODE: "toolchain-node",
+  PROVIDER_MAVEN: "provider-maven",
+  PROVIDER_GRADLE: "provider-gradle",
+  PROVIDER_NODE: "provider-node",
+  PROVIDER_CARGO: "provider-cargo",
+};
+
+const SETTINGS_CAT_SET = new Set(Object.values(SETTINGS_CAT));
+
+/** 旧导航 id → 新 cat（兼容内存中的旧值） */
+const LEGACY_SETTINGS_CAT = {
+  java: SETTINGS_CAT.PROVIDER_MAVEN,
+  node: SETTINGS_CAT.TOOLCHAIN_NODE,
+  cargo: SETTINGS_CAT.PROVIDER_CARGO,
+  gradle: SETTINGS_CAT.PROVIDER_GRADLE,
+};
+
+/** provider kind → settingsCat */
+export const PROVIDER_KIND_CAT = {
+  maven: SETTINGS_CAT.PROVIDER_MAVEN,
+  gradle: SETTINGS_CAT.PROVIDER_GRADLE,
+  node: SETTINGS_CAT.PROVIDER_NODE,
+  cargo: SETTINGS_CAT.PROVIDER_CARGO,
+};
+
+export function normalizeSettingsCat(id) {
+  const raw = String(id || "").trim();
+  if (SETTINGS_CAT_SET.has(raw)) return raw;
+  if (LEGACY_SETTINGS_CAT[raw]) return LEGACY_SETTINGS_CAT[raw];
+  return SETTINGS_CAT.GENERAL;
+}
+
+export const settingsCat = ref(SETTINGS_CAT.GENERAL);
 
 /** App 壳 ConfigProvider / i18n / 日志换行 / 功能按钮数 */
 export const locale = ref("zh-CN");
