@@ -61,3 +61,10 @@ export function closeTabs(keys) {
 export function setPanel(key, panelId) {
   panelByKey.value = { ...panelByKey.value, [key]: panelId };
 }
+
+/** 清空全部标签（关闭工作区时） */
+export function clearAllTabs() {
+  openTabs.value = [];
+  activeKey.value = "";
+  panelByKey.value = {};
+}

@@ -1,20 +1,21 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, inject, ref } from "vue";
 import Sidebar from "../features/workbench/Sidebar.vue";
+import PlanRunningDock from "../features/workbench/PlanRunningDock.vue";
 import ProjectTabs from "../features/workbench/ProjectTabs.vue";
 import ProjectHeader from "../features/workbench/ProjectHeader.vue";
 import CloseTabConfirm from "../features/workbench/CloseTabConfirm.vue";
 import LogsPanel from "../features/workbench/panels/LogsPanel.vue";
 import DepsPanel from "../features/workbench/panels/DepsPanel.vue";
 import MonitorPanel from "../features/workbench/panels/MonitorPanel.vue";
-import { useWorkbench } from "../features/workbench/useWorkbench.js";
 import { logWrap } from "../stores/settings.js";
 import "../features/workbench/workbench.css";
 
-const props = defineProps({
+defineProps({
   t: { type: Function, required: true },
 });
 
+const wb = inject("workbench");
 const {
   projects,
   scan,
@@ -26,6 +27,9 @@ const {
   grouped,
   selectedPath,
   selectedKind,
+  runPlanActive,
+  stopRunPlan,
+  enabledWorkspaceRoots,
   projectProcs,
   selectProject,
   current,
@@ -59,7 +63,7 @@ const {
   openInEditor,
   openInTerminal,
   t,
-} = useWorkbench(props.t);
+} = wb;
 
 const monitorRef = ref(null);
 const selectedProcess = computed(
@@ -71,6 +75,10 @@ const selectedProcess = computed(
 
 function refreshMonitor() {
   monitorRef.value?.refresh?.();
+}
+
+function setSelectedPid(pid) {
+  selectedPid.value = pid;
 }
 </script>
 
@@ -84,6 +92,7 @@ function refreshMonitor() {
         :selected-path="selectedPath"
         :selected-kind="selectedKind"
         :project-procs="projectProcs"
+        :root-count="enabledWorkspaceRoots.length"
         @scan="scan"
         @select="selectProject"
       />
@@ -111,7 +120,7 @@ function refreshMonitor() {
               :display-action="displayAction"
               :has-running="!!currentProcesses.length"
               :stop-label="t('stop')"
-              @update:selected-pid="selectedPid = $event"
+              @update:selected-pid="setSelectedPid"
               @open-editor="openInEditor(current)"
               @open-terminal="openInTerminal(current)"
               @run="(action) => run(current, action)"
@@ -198,6 +207,8 @@ function refreshMonitor() {
       </section>
     </div>
 
+    <PlanRunningDock :t="t" :running="runPlanActive" @stop="stopRunPlan" />
+
     <CloseTabConfirm
       v-model:open="closeConfirmOpen"
       :mode="closeConfirmMode"
@@ -209,4 +220,3 @@ function refreshMonitor() {
     />
   </div>
 </template>
-

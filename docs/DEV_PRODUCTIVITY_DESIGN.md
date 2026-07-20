@@ -478,18 +478,21 @@ Pipeline {
 {
   "version": 1,
   "projectFilter": { },
+  "runPlans": [],
   "pipelines": [],
   "probes": { "maven": "http://127.0.0.1:{port}/actuator/health" },
   "recommended": { "nodePackageManager": "pnpm" }
 }
 ```
 
+多根会话存在本机 `localStorage`（`devkit.workspace.session`）；上限由 `settings.general.maxWorkspaceRoots`（默认 10）与 `maxParallelSpawns`（默认 10）控制。RunPlan：个人计划在 `~/.devkit/settings.json` 的 `runPlans`；仓库计划在各根 `.devkit/workspace.json` 的 `runPlans`（读时兼容旧 `pipelines`）；同 `id` 时工作区覆盖个人。行内存 `relPath`+`kind`，不写死绝对路径。
+
 #### 合并规则
 
 | 项 | 优先级 |
 |----|--------|
 | 本机工具链路径 | 仅用户 settings |
-| projectFilter / pipelines / probes | workspace 文件 < 用户覆盖（或相反，需在设置中选「优先工作区」） |
+| projectFilter / runPlans / probes | workspace 文件 < 用户覆盖（或相反，需在设置中选「优先工作区」）；同 id 的 runPlan 工作区优先 |
 | 推荐 pm | 提示用户，不强制改本机默认 |
 
 #### 调整位置

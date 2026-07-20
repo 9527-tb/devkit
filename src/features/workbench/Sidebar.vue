@@ -1,23 +1,25 @@
 <!--
-  侧栏：分组项目列表、筛选。对齐原型（无项目行 ⋯ 菜单）。
-  对应 DESIGN.md §12.2 Sidebar
+  侧栏：多根 → Kind 分组（可折叠），无多选。
 -->
 <script setup>
 import { computed, ref } from "vue";
 import { Empty } from "antdv-next";
-import { ReloadOutlined, SearchOutlined } from "@antdv-next/icons";
+import {
+  CaretRightOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+} from "@antdv-next/icons";
 import { makeProjectKey } from "../../shared/projectKey.js";
-
-// DONE(fe-sidebar): 侧栏分组与打开 Tab — DESIGN §12.2
-// DONE(ux-sidebar-filter): 侧栏筛选 — DESIGN §10 / 原型
 
 const props = defineProps({
   t: { type: Function, required: true },
   projects: { type: Array, default: () => [] },
+  /** [{ rootId, rootLabel, rootPath, kinds: [{ group, items }], count }] */
   grouped: { type: Array, default: () => [] },
   selectedPath: { type: String, default: "" },
   selectedKind: { type: String, default: "" },
   projectProcs: { type: Function, required: true },
+  rootCount: { type: Number, default: 0 },
 });
 
 defineEmits(["scan", "select"]);
@@ -25,22 +27,35 @@ defineEmits(["scan", "select"]);
 const { t } = props;
 const emptySimpleImage = Empty.PRESENTED_IMAGE_SIMPLE;
 const filterText = ref("");
+/** 折叠的 Kind 分组 key：`${rootId}::${group}` */
+const collapsedKinds = ref(new Set());
 
 const filteredGrouped = computed(() => {
   const q = filterText.value.trim().toLowerCase();
-  if (!q) return props.grouped;
   return props.grouped
-    .map(({ group, items }) => ({
-      group,
-      items: items.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.path.toLowerCase().includes(q) ||
-          p.kind.toLowerCase().includes(q),
-      ),
-    }))
-    .filter((g) => g.items.length);
+    .map((root) => {
+      const kinds = (root.kinds || [])
+        .map(({ group, items }) => ({
+          group,
+          items: q
+            ? items.filter(
+                (p) =>
+                  p.name.toLowerCase().includes(q) ||
+                  p.path.toLowerCase().includes(q) ||
+                  p.kind.toLowerCase().includes(q),
+              )
+            : items,
+        }))
+        .filter((g) => g.items.length);
+      const count = kinds.reduce((n, g) => n + g.items.length, 0);
+      return { ...root, kinds, count };
+    })
+    .filter((r) => r.count > 0);
 });
+
+const kindGroupCount = computed(() =>
+  filteredGrouped.value.reduce((n, r) => n + r.kinds.length, 0),
+);
 
 function projectKey(project) {
   return makeProjectKey(project.path, project.kind);
@@ -54,15 +69,37 @@ function metaText(project) {
   const n = props.projectProcs(project.path, project.kind).length;
   return n ? t("instanceCount", { n }) : t("notRunning");
 }
+
+function kindKey(root, group) {
+  return `${root.rootId || root.rootPath || "_"}::${group}`;
+}
+
+function isKindCollapsed(root, group) {
+  return collapsedKinds.value.has(kindKey(root, group));
+}
+
+function toggleKind(root, group) {
+  const key = kindKey(root, group);
+  const next = new Set(collapsedKinds.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  collapsedKinds.value = next;
+}
 </script>
 
 <template>
   <aside class="sidebar">
     <div class="side-head">
       <div>
-        <h2>{{ t("projectList") }}</h2>
+        <h2>{{ t("explorer") }}</h2>
         <div class="meta">
-          {{ t("projectsCount", { n: projects.length, g: grouped.length }) }}
+          {{
+            t("projectsCountRoots", {
+              n: projects.length,
+              r: rootCount || grouped.length,
+              g: kindGroupCount,
+            })
+          }}
         </div>
       </div>
       <button type="button" class="icon-btn" :title="t('analyze')" @click="$emit('scan')">
@@ -90,31 +127,44 @@ function metaText(project) {
         :description="t('selectProjectHint')"
       />
 
-      <section v-for="{ group, items } in filteredGrouped" :key="group" class="group">
-        <div class="group-h">
-          <span class="name">{{ group }}</span>
-          <span class="count">{{ items.length }}</span>
+      <section
+        v-for="root in filteredGrouped"
+        :key="root.rootId || root.rootPath || '_'"
+        class="root-block"
+      >
+        <div v-if="root.rootLabel || grouped.length > 1" class="root-h">
+          <span class="name">{{ root.rootLabel || root.rootPath }}</span>
+          <span class="count">{{ root.count }}</span>
         </div>
 
-        <div
-          v-for="project in items"
-          :key="projectKey(project)"
-          class="proj"
-          :class="{ active: isSelected(project) }"
-          @click="$emit('select', project)"
-        >
-          <span
-            class="dot"
-            :class="{ on: projectProcs(project.path, project.kind).length }"
-          />
-          <span class="pname">{{ project.name }}</span>
-          <span
-            class="pmeta"
-            :class="{ running: projectProcs(project.path, project.kind).length }"
-          >
-            {{ metaText(project) }}
-          </span>
-        </div>
+        <section v-for="{ group, items } in root.kinds" :key="`${root.rootId}-${group}`" class="group">
+          <div class="group-h" @click="toggleKind(root, group)">
+            <CaretRightOutlined
+              class="group-caret"
+              :class="{ open: !isKindCollapsed(root, group) }"
+            />
+            <span class="name">{{ group }}</span>
+            <span class="count">{{ items.length }}</span>
+          </div>
+
+          <div v-show="!isKindCollapsed(root, group)" class="group-body">
+            <div
+              v-for="project in items"
+              :key="projectKey(project)"
+              class="proj"
+              :class="{ active: isSelected(project) }"
+              @click="$emit('select', project)"
+            >
+              <span class="pname">{{ project.name }}</span>
+              <span
+                class="pmeta"
+                :class="{ running: projectProcs(project.path, project.kind).length }"
+              >
+                {{ metaText(project) }}
+              </span>
+            </div>
+          </div>
+        </section>
       </section>
     </div>
   </aside>
@@ -173,7 +223,6 @@ function metaText(project) {
   background: var(--sidebar-bg);
   position: relative;
   z-index: 2;
-  /* 盖住列表滚动顶沿 1px 发丝缝 */
   box-shadow: 0 1px 0 0 var(--sidebar-bg);
 }
 .side-search :deep(.ant-input-affix-wrapper) {
@@ -188,12 +237,6 @@ function metaText(project) {
 .side-search :deep(.ant-input-affix-wrapper .ant-input) {
   font-size: 11px;
   line-height: 22px;
-}
-.side-search :deep(.ant-input-affix-wrapper .ant-input-prefix) {
-  margin-inline-end: 4px;
-}
-.side-search :deep(.ant-input-affix-wrapper .ant-input-clear-icon) {
-  font-size: 11px;
 }
 .side-search :deep(.ant-input-affix-wrapper:hover),
 .side-search :deep(.ant-input-affix-wrapper-focused) {
@@ -213,44 +256,84 @@ function metaText(project) {
   overflow: auto;
   padding: 0 8px 12px;
 }
-.group-h {
+.root-h {
   display: flex;
   align-items: center;
   gap: 6px;
-  /* top:-1px + 补 1px padding，封住 sticky 顶边亚像素缝 */
-  padding: 5px 0 5px;
+  padding: 8px 0 4px;
   position: sticky;
   top: -1px;
+  z-index: 2;
+  background: var(--sidebar-bg);
+  box-shadow: 0 -1px 0 0 var(--sidebar-bg), 0 1px 0 0 var(--sidebar-bg);
+}
+.root-h .name {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.root-h .count {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+.group-h,
+.proj {
+  height: 28px;
+  box-sizing: border-box;
+}
+.group-h {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  position: sticky;
+  top: 22px;
   z-index: 1;
   background: var(--sidebar-bg);
-  box-shadow:
-    0 -1px 0 0 var(--sidebar-bg),
-    0 1px 0 0 var(--sidebar-bg);
+  box-shadow: 0 -1px 0 0 var(--sidebar-bg), 0 1px 0 0 var(--sidebar-bg);
+  cursor: pointer;
+  user-select: none;
+  border-radius: var(--radius);
+}
+.group-h:hover {
+  background: color-mix(in srgb, var(--nav-hover, #e8f1ed) 70%, var(--sidebar-bg));
+}
+.group-caret {
+  flex: none;
+  width: 12px;
+  font-size: 10px;
+  color: var(--muted, #6b7a76);
+  transition: transform 0.12s ease;
+}
+.group-caret.open {
+  transform: rotate(90deg);
 }
 .group-h .name {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--ink-soft, #30433e);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  line-height: 28px;
 }
 .group-h .count {
   color: var(--muted, #6b7a76);
   font-size: 10px;
   font-weight: 600;
+  line-height: 28px;
 }
 .proj {
   display: grid;
-  grid-template-columns: 6px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  height: 28px;
-  margin: 1px 0;
-  padding: 0 6px 0 8px;
+  gap: 6px;
+  margin: 0;
+  /* 相对类型行：caret(12) + gap(4) + 额外缩进(10) */
+  padding: 0 6px 0 26px;
   border-radius: var(--radius);
   cursor: pointer;
   transition: background 0.12s;
-  box-sizing: border-box;
 }
 .proj:hover {
   background: var(--nav-hover, #e8f1ed);
@@ -261,20 +344,6 @@ function metaText(project) {
 .proj.active .pname {
   color: var(--teal, #0f766e);
   font-weight: 700;
-}
-.dot {
-  width: 6px;
-  height: 6px;
-  min-width: 6px;
-  min-height: 6px;
-  border-radius: 50%;
-  box-sizing: border-box;
-  background: var(--line-hover, #b9cdc5);
-  box-shadow: none;
-  transition: background 0.12s ease;
-}
-.dot.on {
-  background: var(--running, #149a6a);
 }
 .pname {
   min-width: 0;

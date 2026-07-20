@@ -1,20 +1,12 @@
 <!--
-  全局自定义标题栏（Tauri 规范）：
-  - macOS：Overlay + 原生红绿灯（左侧），内容左缩进
-  - Windows/Linux：decorations:false + 右侧自定义窗口按钮
-  - 标题区可拖拽；右侧操作为 type=text
+  全局自定义标题栏：
+  - 居中会话芯片；右侧体检 / Git / 版本三个图标
+  - 主导航改由 AppRail；无品牌文案、无设置按钮
 -->
 <script setup>
 import { computed, inject, onMounted, onBeforeUnmount, ref } from "vue";
-import {
-  SettingOutlined,
-  CloudDownloadOutlined,
-  LayoutFilled,
-  AppstoreFilled,
-} from "@antdv-next/icons";
+import { TagOutlined } from "@antdv-next/icons";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { settingsPage } from "../../stores/settings.js";
-import { toolsPage } from "../../stores/tools.js";
 import { root } from "../../stores/workspace.js";
 import {
   healthReport,
@@ -36,54 +28,31 @@ defineProps({
   t: { type: Function, required: true },
 });
 
-const { openSettings, closeSettings } = useSettings();
-const { openTools, closeTools } = useTools();
+const { openSettings } = useSettings();
+const { openTools } = useTools();
 
 const appUpdate = inject("appUpdate", null);
 const updateAvailable = computed(() => !!appUpdate?.updateAvailable?.value);
 const updateChecking = computed(() => !!appUpdate?.checking?.value);
+const appVersion = computed(() => appUpdate?.appVersion?.value || "—");
 
 const showWinControls = useCustomWindowControls;
 const controlsVariant = isLinux ? "linux" : "windows";
 
-/** macOS：非全屏时为红绿灯留白（最大化仍显示红绿灯）；仅全屏时收回留白 */
 const macTrafficInset = ref(isMac);
-
-const activeNav = computed(() => {
-  if (toolsPage.value) return "tools";
-  if (settingsPage.value) return "settings";
-  return "project";
-});
-
-function goProject() {
-  closeSettings();
-  closeTools();
-}
-
-function goTools() {
-  closeSettings();
-  openTools();
-}
 
 function onCheckUpdate() {
   appUpdate?.checkForUpdate?.({ silent: false });
-}
-
-function onOpenSettings() {
-  closeTools();
-  openSettings();
 }
 
 function onHealthHandle(payload) {
   const target = resolveHealthNavigation(payload?.action);
   if (!target) return;
   if (target.type === "settings") {
-    closeTools();
     openSettings(target.cat);
     return;
   }
   if (target.type === "tools") {
-    closeSettings();
     openTools(target.toolId, { port: payload?.port });
   }
 }
@@ -145,29 +114,6 @@ onBeforeUnmount(() => {
     <div class="app-titlebar-drag" data-tauri-drag-region />
 
     <div class="app-titlebar-inner">
-      <div class="app-titlebar-left">
-        <nav class="app-titlebar-nav" aria-label="main">
-          <button
-            type="button"
-            class="app-titlebar-tab"
-            :class="{ active: activeNav === 'project' }"
-            @click="goProject"
-          >
-            <LayoutFilled class="app-titlebar-tab-icon" />
-            <span>{{ t("navProject") }}</span>
-          </button>
-          <button
-            type="button"
-            class="app-titlebar-tab"
-            :class="{ active: activeNav === 'tools' }"
-            @click="goTools"
-          >
-            <AppstoreFilled class="app-titlebar-tab-icon" />
-            <span>{{ t("navTools") }}</span>
-          </button>
-        </nav>
-      </div>
-
       <div class="app-titlebar-center">
         <WorkspaceSwitcher :t="t" />
       </div>
@@ -183,29 +129,20 @@ onBeforeUnmount(() => {
               @refresh="refreshWorkspaceHealth"
               @handle="onHealthHandle"
             />
-            <GitStatusButton :t="t" :status="gitStatus" />
-            <div class="app-titlebar-divider" aria-hidden="true" />
+            <GitStatusButton :t="t" :status="gitStatus" variant="icon" />
           </template>
-          <a-badge :dot="updateAvailable" :offset="[-2, 2]">
-            <a-button
-              type="text"
-              class="app-titlebar-icon-btn"
-              :title="t('checkForUpdate')"
-              :loading="updateChecking"
+          <a-badge :dot="updateAvailable" :offset="[-4, 4]">
+            <button
+              type="button"
+              class="title-icon-btn"
+              :class="{ loading: updateChecking }"
+              :title="`${t('checkForUpdate')} · v${appVersion}`"
+              :disabled="updateChecking"
               @click="onCheckUpdate"
             >
-              <template #icon><CloudDownloadOutlined /></template>
-            </a-button>
+              <TagOutlined />
+            </button>
           </a-badge>
-          <a-button
-            type="text"
-            class="app-titlebar-icon-btn"
-            :class="{ 'is-active': activeNav === 'settings' }"
-            :title="t('settings')"
-            @click="onOpenSettings"
-          >
-            <template #icon><SettingOutlined /></template>
-          </a-button>
         </div>
         <WindowControls v-if="showWinControls" :variant="controlsVariant" />
       </div>
@@ -214,14 +151,9 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/*
-  标题栏内容始终纵向居中：
-  - 底部分割用 inset box-shadow，避免 border 占高导致 flex 视觉偏上
-  - 左右栏 align-self:center，Tab 高度随栏高变化
-*/
 .app-titlebar {
-  --titlebar-h: 37px;
-  --titlebar-control-h: calc(var(--titlebar-h) - 12px);
+  --titlebar-h: 34px;
+  --titlebar-control-h: 26px;
   position: relative;
   z-index: 60;
   flex: none;
@@ -235,9 +167,8 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-/* macOS Overlay：非全屏为红绿灯留白；全屏收回 */
 .app-titlebar.is-mac {
-  --titlebar-h: 41px;
+  --titlebar-h: 38px;
   padding-left: 1px;
 }
 .app-titlebar.is-mac.is-mac-traffic-inset {
@@ -257,10 +188,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   column-gap: 8px;
-  padding: 0 6px 0 8px;
+  padding: 0 8px;
   pointer-events: none;
   box-sizing: border-box;
 }
@@ -269,27 +200,24 @@ onBeforeUnmount(() => {
   padding-right: 0;
 }
 
-.app-titlebar-left,
 .app-titlebar-right,
-.app-titlebar-nav,
 .app-titlebar-actions,
-.app-titlebar-tab,
-.app-titlebar-icon-btn,
-.app-titlebar-center {
+.app-titlebar-center,
+.title-icon-btn {
   pointer-events: auto;
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
 
-.app-titlebar-left {
-  grid-column: 1;
-  justify-self: start;
+.app-titlebar-center {
+  grid-column: 2;
+  justify-self: center;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-width: 0;
+  justify-content: center;
+  max-width: min(480px, 52vw);
   height: var(--titlebar-control-h);
-  z-index: 2;
 }
 
 .app-titlebar-right {
@@ -297,7 +225,7 @@ onBeforeUnmount(() => {
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   height: var(--titlebar-control-h);
   z-index: 2;
@@ -308,91 +236,12 @@ onBeforeUnmount(() => {
   height: 100%;
 }
 
-.app-titlebar-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: var(--titlebar-control-h);
-}
-
-.app-titlebar-tab {
-  box-sizing: border-box;
-  height: 100%;
-  margin: 0;
-  padding: 0 12px;
-  border: 0;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-soft);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  cursor: pointer;
-}
-
-.app-titlebar-tab > span {
-  display: inline-flex;
-  align-items: center;
-  line-height: 1;
-}
-
-.app-titlebar-tab-icon {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  font-size: 12px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.app-titlebar-tab-icon :deep(svg) {
-  width: 12px;
-  height: 12px;
-  display: block;
-}
-
-.app-titlebar-tab:hover {
-  background: var(--nav-hover);
-  color: var(--ink);
-}
-
-.app-titlebar-tab.active {
-  background: var(--teal-soft);
-  color: var(--teal);
-}
-
-.app-titlebar-center {
-  grid-column: 2;
-  justify-self: center;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-width: min(420px, 46vw);
-  height: var(--titlebar-control-h);
-}
-
 .app-titlebar-actions {
   display: flex;
   align-items: center;
   gap: 0;
   height: var(--titlebar-control-h);
   padding-right: 2px;
-}
-
-.app-titlebar-divider {
-  width: 1px;
-  height: 14px;
-  margin: 0 6px;
-  background: color-mix(in srgb, var(--line) 90%, transparent);
-  flex: none;
 }
 
 .app-titlebar-actions :deep(.ant-badge) {
@@ -402,30 +251,38 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-.app-titlebar-icon-btn {
-  width: var(--titlebar-control-h) !important;
-  height: 100% !important;
-  min-width: var(--titlebar-control-h) !important;
-  padding: 0 !important;
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  line-height: 1 !important;
+.app-titlebar-actions :deep(.health-icon-btn),
+.app-titlebar-actions :deep(.git-icon-btn) {
+  width: 26px !important;
+  height: 26px !important;
+  min-width: 26px !important;
+}
+
+.title-icon-btn {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius, 3px);
+  background: transparent;
   color: var(--ink-soft);
-}
-
-.app-titlebar-icon-btn:hover {
-  color: var(--ink);
-}
-
-.app-titlebar-icon-btn.is-active {
-  color: var(--teal);
-  background: var(--teal-soft);
-}
-
-.app-titlebar-icon-btn :deep(.anticon) {
-  line-height: 1;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.title-icon-btn:hover:not(:disabled) {
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.title-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.title-icon-btn.loading {
+  opacity: 0.7;
 }
 </style>

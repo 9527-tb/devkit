@@ -76,6 +76,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::scan_projects,
             commands::run_action,
+            commands::run_pipeline,
             commands::stop_project,
             commands::stop_instance,
             commands::stop_all_processes,

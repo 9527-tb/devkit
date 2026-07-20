@@ -28,10 +28,12 @@ import {
   normalizeSettings,
   normalizeNodePackageManager,
   clampActionButtonCount,
+  clampOrchestrationLimit,
   entryKey,
   patchSettings,
 } from "../../stores/settings.js";
 import { toolsPage, toolsQuery } from "../../stores/tools.js";
+import { plansPage } from "../../stores/appNav.js";
 
 const t = createTranslator(locale);
 import {
@@ -64,6 +66,7 @@ export function useSettings() {
 
   async function openSettings(cat) {
     toolsPage.value = false;
+    plansPage.value = false;
     settingsPage.value = true;
     settingsCat.value = normalizeSettingsCat(cat || SETTINGS_CAT.GENERAL);
     await load();
@@ -149,6 +152,28 @@ export function useSettings() {
       general: { ...settings.value.general, actionButtonCount: count },
     };
     actionButtonCount.value = count;
+    schedulePersistSettings();
+  }
+
+  function onMaxWorkspaceRootsChange(value) {
+    settings.value = {
+      ...settings.value,
+      general: {
+        ...settings.value.general,
+        maxWorkspaceRoots: clampOrchestrationLimit(value, 10),
+      },
+    };
+    schedulePersistSettings();
+  }
+
+  function onMaxParallelSpawnsChange(value) {
+    settings.value = {
+      ...settings.value,
+      general: {
+        ...settings.value.general,
+        maxParallelSpawns: clampOrchestrationLimit(value, 10),
+      },
+    };
     schedulePersistSettings();
   }
 
@@ -298,6 +323,8 @@ export function useSettings() {
     onEditorCommandChange,
     onTerminalAppChange,
     onActionButtonCountChange,
+    onMaxWorkspaceRootsChange,
+    onMaxParallelSpawnsChange,
     onMavenHomeInput,
     onNodePackageManagerChange,
     onLaunchAtLoginChange,

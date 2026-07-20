@@ -16,6 +16,9 @@ pub struct WorkspaceConfig {
     pub version: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_filter: Option<Value>,
+    /// 运行计划（规范字段）；读时兼容旧 `pipelines`
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_plans: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pipelines: Option<Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -41,6 +44,12 @@ pub fn load_workspace_config(root: String) -> Result<Option<WorkspaceConfig>, St
     let mut config: WorkspaceConfig =
         serde_json::from_str(&text).map_err(|e| format!("解析 workspace.json 失败: {e}"))?;
     sanitize_config(&mut config);
+    // 兼容：旧 pipelines → runPlans
+    if config.run_plans.is_none() {
+        if let Some(p) = config.pipelines.clone() {
+            config.run_plans = Some(p);
+        }
+    }
     Ok(Some(config))
 }
 
@@ -63,6 +72,7 @@ pub fn save_workspace_config(root: String, config: WorkspaceConfig) -> Result<()
 /// 禁止写入本机工具链绝对路径等敏感字段。
 fn sanitize_config(config: &mut WorkspaceConfig) {
     strip_toolchain_paths(&mut config.project_filter);
+    strip_toolchain_paths(&mut config.run_plans);
     strip_toolchain_paths(&mut config.pipelines);
     strip_toolchain_paths(&mut config.probes);
     if let Some(rec) = config.recommended.as_mut() {
