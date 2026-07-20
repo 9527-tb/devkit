@@ -10,14 +10,45 @@ use crate::core::scan_engine::{project_at, resolve_command};
 use crate::models::{LogEvent, ProcessView, RunSummary};
 use crate::runtime::{self, RuntimeEntry, RuntimeSettings};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
+
+/// 流水线单步：spawn=启动即返回；complete=等待进程退出。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PipelineStep {
+    pub action: String,
+    #[serde(default = "default_wait_spawn")]
+    pub wait: String,
+    #[serde(default = "default_true_bool")]
+    pub stop_on_error: bool,
+}
+
+fn default_wait_spawn() -> String {
+    "spawn".into()
+}
+
+fn default_true_bool() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PipelineStepEvent {
+    pub path: String,
+    pub kind: String,
+    pub step_index: usize,
+    pub action: String,
+    pub status: String,
+    pub exit_code: Option<i32>,
+}
 
 /// 项目日志键：同一 path+kind 下命令日志追加，不因进程结束/换 pid 清空。
 fn make_log_key(path: &str, kind: &str) -> String {
@@ -32,6 +63,7 @@ pub struct Running {
     pub started_at: Instant,
 }
 
+#[derive(Clone)]
 pub struct AppState {
     pub processes: Arc<Mutex<HashMap<String, Vec<Running>>>>,
     pub logs: Arc<Mutex<HashMap<String, Vec<String>>>>,
@@ -110,6 +142,8 @@ pub fn parse_port_from_line(line: &str) -> Option<String> {
     None
 }
 
+/// 按需探测监听端口（勿在轮询热路径调用，lsof 会卡 UI）。
+#[allow(dead_code)]
 pub fn port_for_pid(pid: u32) -> Option<String> {
     crate::platform::list_listening_ports_tree(pid)
         .into_iter()
@@ -461,6 +495,13 @@ fn resolve_runtime_notes(
     Ok(notes)
 }
 
+/// Create React App / webpack-dev-server 在 stdout 非 TTY（DevKit 管道读日志）时会秒退；
+/// 设 CI=true 禁用交互（如端口占用 Y/n），BROWSER=none 避免 GUI 环境弹浏览器。
+fn apply_node_script_env(cmd: &mut Command) {
+    cmd.env("CI", "true");
+    cmd.env("BROWSER", "none");
+}
+
 pub fn run_action(
     app: AppHandle,
     state: &AppState,
@@ -499,7 +540,8 @@ pub fn run_action(
             format!("{base} {}", args.join(" "))
         }
     };
-    let mut port = port_from_command(&display_cmd);
+    // 启动瞬间不扫进程树端口（lsof 易阻塞）；端口由命令行解析 + 日志补充
+    let port = port_from_command(&display_cmd);
 
     // Spawn program directly (no login shell) so stdout/stderr are reliably piped.
     let mut cmd = Command::new(&program);
@@ -508,6 +550,9 @@ pub fn run_action(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .stdin(Stdio::null());
+    if project.kind == "node" && action.starts_with("script:") {
+        apply_node_script_env(&mut cmd);
+    }
     apply_enriched_path(&mut cmd);
 
     let runtime_notes = resolve_runtime_notes(&app, &mut cmd, &path, &project.kind)?;
@@ -527,9 +572,6 @@ pub fn run_action(
 
     let mut child = cmd.spawn().map_err(|e| format!("启动失败 ({program}): {e}"))?;
     let pid = child.id();
-    if port.is_none() {
-        port = port_for_pid(pid);
-    }
 
     let project_key = make_project_key(&path, &kind);
     let logs = state.logs.clone();
@@ -701,6 +743,135 @@ pub fn run_action(
     });
 
     Ok(view)
+}
+
+/// 单项目多步流水线。`wait=complete` 时阻塞直到该步退出。
+pub fn run_pipeline(
+    app: AppHandle,
+    state: &AppState,
+    path: String,
+    kind: String,
+    steps: Vec<PipelineStep>,
+) -> Result<(), String> {
+    if steps.is_empty() {
+        return Err("流水线步骤为空".into());
+    }
+    for (i, step) in steps.iter().enumerate() {
+        let _ = app.emit(
+            "pipeline-step",
+            PipelineStepEvent {
+                path: path.clone(),
+                kind: kind.clone(),
+                step_index: i,
+                action: step.action.clone(),
+                status: "started".into(),
+                exit_code: None,
+            },
+        );
+        let view = run_action(app.clone(), state, path.clone(), step.action.clone(), kind.clone())?;
+        let wait = step.wait.to_ascii_lowercase();
+        if wait == "complete" {
+            let pid = view.pid;
+            let project_key = make_project_key(&path, &kind);
+            let code = wait_for_pid(state, &project_key, pid)?;
+            let status = if code == Some(0) { "ok" } else { "failed" };
+            let _ = app.emit(
+                "pipeline-step",
+                PipelineStepEvent {
+                    path: path.clone(),
+                    kind: kind.clone(),
+                    step_index: i,
+                    action: step.action.clone(),
+                    status: status.into(),
+                    exit_code: code,
+                },
+            );
+            if code != Some(0) && step.stop_on_error {
+                return Err(format!(
+                    "流水线停在步骤 {}（{}）exit {:?}",
+                    i + 1,
+                    step.action,
+                    code
+                ));
+            }
+        } else {
+            let _ = app.emit(
+                "pipeline-step",
+                PipelineStepEvent {
+                    path: path.clone(),
+                    kind: kind.clone(),
+                    step_index: i,
+                    action: step.action.clone(),
+                    status: "spawned".into(),
+                    exit_code: None,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn summary_exit_for_pid(state: &AppState, project_key: &str, pid: u32) -> Option<Option<i32>> {
+    let map = state.last_run_summaries.lock().ok()?;
+    let summary = map.get(project_key)?;
+    if summary.pid == pid {
+        Some(summary.exit_code)
+    } else {
+        None
+    }
+}
+
+/// 等待指定 pid 退出。后台 reaper 可能先收走进程；进程从表中消失且迟迟无摘要时必须退出，避免死循环卡死。
+fn wait_for_pid(state: &AppState, project_key: &str, pid: u32) -> Result<Option<i32>, String> {
+    let started = Instant::now();
+    let mut missing_since: Option<Instant> = None;
+    loop {
+        if started.elapsed() > Duration::from_secs(60 * 60) {
+            return Err(format!("等待进程超时 (pid {pid})"));
+        }
+        thread::sleep(Duration::from_millis(200));
+
+        // reaper 已写入摘要时优先返回，避免与 try_wait 竞态
+        if let Some(code) = summary_exit_for_pid(state, project_key, pid) {
+            return Ok(code);
+        }
+
+        let mut still_tracked = false;
+        {
+            let mut map = state.processes.lock().map_err(|_| "进程状态不可用")?;
+            if let Some(items) = map.get_mut(project_key) {
+                if let Some(pos) = items.iter().position(|r| r.child.id() == pid) {
+                    still_tracked = true;
+                    missing_since = None;
+                    match items[pos].child.try_wait() {
+                        Ok(Some(status)) => {
+                            let code = status.code();
+                            items.remove(pos);
+                            if items.is_empty() {
+                                map.remove(project_key);
+                            }
+                            return Ok(code);
+                        }
+                        Ok(None) => {}
+                        Err(e) => return Err(format!("等待进程失败: {e}")),
+                    }
+                }
+            }
+        }
+
+        if still_tracked {
+            continue;
+        }
+
+        // 不在进程表中：等摘要短暂窗口，超时则返回避免卡死
+        let since = missing_since.get_or_insert_with(Instant::now);
+        if since.elapsed() > Duration::from_secs(2) {
+            if let Some(code) = summary_exit_for_pid(state, project_key, pid) {
+                return Ok(code);
+            }
+            return Ok(None);
+        }
+    }
 }
 
 fn process_keys_for(path: &str, kind: &str) -> Vec<String> {
@@ -882,20 +1053,10 @@ pub fn process_metrics(
 }
 
 pub fn running_processes(state: &AppState) -> HashMap<String, Vec<ProcessView>> {
-    let mut map = state.processes.lock().unwrap();
+    let map = state.processes.lock().unwrap();
     let mut out: HashMap<String, Vec<ProcessView>> = HashMap::new();
-    for (key, items) in map.iter_mut() {
-        for item in items.iter_mut() {
-            if !pid_alive(item.child.id()) {
-                continue;
-            }
-            // 优先 OS 真实监听（含子进程）；日志/命令推断仅作无监听时的兜底
-            if let Some(real) = port_for_pid(item.child.id()) {
-                if concrete_listen_port(&real).is_some() {
-                    item.port = Some(real);
-                }
-            }
-        }
+    for (key, items) in map.iter() {
+        // 不在轮询路径调用 port_for_pid（lsof）：易卡 UI；端口靠启动推断 + 日志补充
         let views: Vec<ProcessView> = items
             .iter()
             .filter(|v| pid_alive(v.child.id()))

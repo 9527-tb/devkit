@@ -4,11 +4,13 @@
 
 import { toolsPage, toolsCat, toolsQuery } from "../../stores/tools.js";
 import { settingsPage } from "../../stores/settings.js";
+import { plansPage } from "../../stores/appNav.js";
 import { defaultToolId } from "./registry.js";
 
 export function useTools() {
   function openTools(toolId, query = {}) {
     settingsPage.value = false;
+    plansPage.value = false;
     toolsPage.value = true;
     toolsCat.value = toolId || defaultToolId();
     toolsQuery.value = { port: query.port ?? null };

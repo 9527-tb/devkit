@@ -133,6 +133,8 @@ pnpm tauri icon path/to/logo.png
 | macOS / Linux | `~/.devkit/settings.json` |
 | Windows | `%APPDATA%\devkit\settings.json` |
 
+多根会话存在本机 `localStorage`（`devkit.workspace.session`）。个人运行计划在 `settings.json` 的 `runPlans`；可分享计划在各工作区根目录 `.devkit/workspace.json`（字段 `runPlans`，兼容旧 `pipelines`）。上限：`general.maxWorkspaceRoots` / `general.maxParallelSpawns`（默认均为 10）。
+
 ---
 
 ## macOS 安装提示「已损坏 / 无法验证」

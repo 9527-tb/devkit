@@ -57,6 +57,12 @@ pub struct GeneralSettings {
     /// 启动后静默检查更新（默认开启）
     #[serde(default = "default_true")]
     pub auto_check_update: bool,
+    /// 最多同时挂载的工作区根目录数（1..=50，默认 10）
+    #[serde(default = "default_orchestration_limit")]
+    pub max_workspace_roots: u32,
+    /// 编排时最多同时 spawn 的进程数（1..=50，默认 10）
+    #[serde(default = "default_orchestration_limit")]
+    pub max_parallel_spawns: u32,
 }
 
 impl Default for GeneralSettings {
@@ -74,6 +80,8 @@ impl Default for GeneralSettings {
             launch_at_login: false,
             close_to_tray: true,
             auto_check_update: true,
+            max_workspace_roots: default_orchestration_limit(),
+            max_parallel_spawns: default_orchestration_limit(),
         }
     }
 }
@@ -92,6 +100,10 @@ fn default_locale() -> String {
 
 fn default_action_button_count() -> u32 {
     5
+}
+
+fn default_orchestration_limit() -> u32 {
+    10
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
@@ -257,6 +269,9 @@ pub struct RuntimeSettings {
     /// 全局侧栏项目过滤
     #[serde(default)]
     pub project_filter: ProjectFilterSettings,
+    /// 个人运行计划（跨工作区）
+    #[serde(default)]
+    pub run_plans: Vec<serde_json::Value>,
     // legacy flat fields (migrate on load)
     #[serde(default, skip_serializing)]
     pub jdks: Vec<RuntimeEntry>,
@@ -321,6 +336,8 @@ fn migrate_settings(mut s: RuntimeSettings) -> RuntimeSettings {
     s.jdks.clear();
     s.nodes.clear();
     s.general.action_button_count = s.general.action_button_count.clamp(1, 10);
+    s.general.max_workspace_roots = s.general.max_workspace_roots.clamp(1, 50);
+    s.general.max_parallel_spawns = s.general.max_parallel_spawns.clamp(1, 50);
     s
 }
 

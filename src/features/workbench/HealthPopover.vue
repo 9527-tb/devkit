@@ -13,7 +13,7 @@ const props = defineProps({
   t: { type: Function, required: true },
   report: { type: Object, default: null },
   loading: { type: Boolean, default: false },
-  /** icon：标题栏图标按钮；tag：旧标签样式 */
+  /** icon：图标按钮；pill：标题栏胶囊；tag：旧标签 */
   trigger: { type: String, default: "icon" },
 });
 
@@ -99,8 +99,18 @@ function onHandle(item) {
       </div>
     </template>
 
+    <button
+      v-if="trigger === 'pill'"
+      type="button"
+      class="health-pill"
+      :class="`is-${iconTone}`"
+      :title="iconTitle"
+    >
+      <span class="health-pill-dot" />
+      <span>{{ tagLabel }}</span>
+    </button>
     <a-button
-      v-if="trigger === 'icon'"
+      v-else-if="trigger === 'icon'"
       type="text"
       class="health-icon-btn"
       :class="`is-${iconTone}`"
@@ -122,6 +132,47 @@ function onHandle(item) {
 </template>
 
 <style scoped>
+.health-pill {
+  height: 26px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 3px);
+  background: var(--panel, #fff);
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.health-pill:hover {
+  border-color: var(--teal-mid, var(--teal));
+  background: var(--teal-soft);
+  color: var(--teal);
+}
+.health-pill.is-warn {
+  border-color: color-mix(in srgb, #d97706 40%, var(--line));
+  color: #d97706;
+}
+.health-pill.is-warn .health-pill-dot {
+  background: #d97706;
+}
+.health-pill.is-ok .health-pill-dot {
+  background: #059669;
+}
+.health-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--running, #149a6a);
+  flex: none;
+}
 .health-icon-btn {
   width: 28px !important;
   height: 28px !important;

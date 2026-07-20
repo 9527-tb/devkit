@@ -32,40 +32,78 @@ pub fn scan_projects(root: String) -> Result<Vec<Project>, String> {
 // ── 进程 / 日志 ─────────────────────────────────────────────
 
 #[tauri::command]
-pub fn run_action(
+pub async fn run_action(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     path: String,
     action: String,
     kind: String,
 ) -> Result<ProcessView, String> {
-    process::run_action(app, state.inner(), path, action, kind)
+    // 解析路径 / 端口探测等可能较慢，必须离开 UI 线程，否则整窗卡死
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        process::run_action(app, &state, path, action, kind)
+    })
+    .await
+    .map_err(|e| format!("执行中断: {e}"))?
 }
 
 #[tauri::command]
-pub fn stop_project(
+pub async fn run_pipeline(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
+    path: String,
+    kind: String,
+    steps: Vec<process::PipelineStep>,
+) -> Result<(), String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        process::run_pipeline(app, &state, path, kind, steps)
+    })
+    .await
+    .map_err(|e| format!("流水线执行中断: {e}"))?
+}
+
+#[tauri::command]
+pub async fn stop_project(
+    app: AppHandle,
+    state: State<'_, AppState>,
     path: String,
     kind: String,
 ) -> Result<(), String> {
-    process::stop_project(&app, state.inner(), path, kind)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        process::stop_project(&app, &state, path, kind)
+    })
+    .await
+    .map_err(|e| format!("停止中断: {e}"))?
 }
 
 #[tauri::command]
-pub fn stop_instance(
+pub async fn stop_instance(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     path: String,
     pid: u32,
 ) -> Result<(), String> {
-    process::stop_instance(&app, state.inner(), path, pid)
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        process::stop_instance(&app, &state, path, pid)
+    })
+    .await
+    .map_err(|e| format!("停止中断: {e}"))?
 }
 
 /// 停止全部托管实例。
 #[tauri::command]
-pub fn stop_all_processes(app: AppHandle, state: State<AppState>) -> Result<u32, String> {
-    process::stop_all(&app, state.inner())
+pub async fn stop_all_processes(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<u32, String> {
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || process::stop_all(&app, &state))
+        .await
+        .map_err(|e| format!("停止中断: {e}"))?
 }
 
 /// 当前运行中实例数（PID 去重）。
@@ -87,8 +125,14 @@ pub fn request_app_quit(app: AppHandle) {
 }
 
 #[tauri::command]
-pub fn running_processes(state: State<AppState>) -> HashMap<String, Vec<ProcessView>> {
-    process::running_processes(state.inner())
+pub async fn running_processes(
+    state: State<'_, AppState>,
+) -> Result<HashMap<String, Vec<ProcessView>>, String> {
+    // 同步 command 会占 UI 线程；进程枚举必须放到 blocking 池
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || process::running_processes(&state))
+        .await
+        .map_err(|e| format!("读取进程中断: {e}"))
 }
 
 #[tauri::command]

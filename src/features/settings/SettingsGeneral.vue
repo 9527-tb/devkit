@@ -26,6 +26,8 @@ const {
   onEditorCommandChange,
   onTerminalAppChange,
   onActionButtonCountChange,
+  onMaxWorkspaceRootsChange,
+  onMaxParallelSpawnsChange,
   onLaunchAtLoginChange,
   onCloseToTrayChange,
   onAutoCheckUpdateChange,
@@ -114,10 +116,11 @@ async function onExportWorkspaceConfig() {
     return;
   }
   try {
+    const plans = workspaceConfig.value?.runPlans || settings.value.runPlans || [];
     const config = {
       version: 1,
       projectFilter: settings.value.projectFilter,
-      pipelines: workspaceConfig.value?.pipelines || [],
+      runPlans: plans,
       probes: workspaceConfig.value?.probes || {},
     };
     await invoke("save_workspace_config", { root, config });
@@ -231,6 +234,43 @@ async function onExportWorkspaceConfig() {
           <a-switch
             :checked="settings.general.healthCheckOnScan"
             @change="onHealthCheckOnScanChange"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div class="cfg-group">
+      <div class="cfg-group-h">
+        <div>
+          <b>{{ t("groupOrchestration") }}</b>
+          <span>{{ t("groupOrchestrationSub") }}</span>
+        </div>
+      </div>
+      <div class="cfg-group-b">
+        <div class="cfg-row">
+          <div>
+            <div class="cfg-label">{{ t("maxWorkspaceRoots") }}</div>
+            <div class="cfg-hint">{{ t("maxWorkspaceRootsHint") }}</div>
+          </div>
+          <a-input-number
+            :min="1"
+            :max="50"
+            :precision="0"
+            :value="settings.general.maxWorkspaceRoots"
+            @change="onMaxWorkspaceRootsChange"
+          />
+        </div>
+        <div class="cfg-row" style="margin-top: 14px">
+          <div>
+            <div class="cfg-label">{{ t("maxParallelSpawns") }}</div>
+            <div class="cfg-hint">{{ t("maxParallelSpawnsHint") }}</div>
+          </div>
+          <a-input-number
+            :min="1"
+            :max="50"
+            :precision="0"
+            :value="settings.general.maxParallelSpawns"
+            @change="onMaxParallelSpawnsChange"
           />
         </div>
       </div>

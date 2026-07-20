@@ -27,6 +27,13 @@ export function clampActionButtonCount(value) {
   return Math.min(10, Math.max(1, Math.round(n)));
 }
 
+/** 多根 / 并行上限：默认 10，范围 1–50 */
+export function clampOrchestrationLimit(value, fallback = 10) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(50, Math.max(1, Math.round(n)));
+}
+
 /** Node 执行工具：npm | pnpm | yarn，默认 npm */
 export const NODE_PACKAGE_MANAGERS = ["npm", "pnpm", "yarn"];
 
@@ -54,11 +61,17 @@ export function emptySettings() {
       closeToTray: true,
       /** 启动后静默检查更新 */
       autoCheckUpdate: true,
+      /** 最多同时挂载的工作区根目录数 */
+      maxWorkspaceRoots: 10,
+      /** 编排时最多同时 spawn 的进程数 */
+      maxParallelSpawns: 10,
     },
     java: { jdks: [], mavenHome: "" },
     node: { nodes: [], packageManager: "npm" },
     /** 全局侧栏过滤（按 Kind + 动作能力），与工作区/选中项无关 */
     projectFilter: emptyProjectFilter(),
+    /** 个人运行计划（跨工作区） */
+    runPlans: [],
   };
 }
 
@@ -85,6 +98,8 @@ export function normalizeSettings(raw) {
       launchAtLogin: !!raw.general?.launchAtLogin,
       closeToTray: raw.general?.closeToTray !== false,
       autoCheckUpdate: raw.general?.autoCheckUpdate !== false,
+      maxWorkspaceRoots: clampOrchestrationLimit(raw.general?.maxWorkspaceRoots, 10),
+      maxParallelSpawns: clampOrchestrationLimit(raw.general?.maxParallelSpawns, 10),
     },
     java: {
       jdks: Array.isArray(raw.java?.jdks)
@@ -103,6 +118,7 @@ export function normalizeSettings(raw) {
       packageManager: normalizeNodePackageManager(raw.node?.packageManager),
     },
     projectFilter: normalizeProjectFilter(raw.projectFilter),
+    runPlans: Array.isArray(raw.runPlans) ? raw.runPlans : [],
   };
 }
 

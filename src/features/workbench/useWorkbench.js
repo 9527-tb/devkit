@@ -13,13 +13,27 @@ import {
   root,
   workspaceHistory,
   workspaceOpenTick,
+  workspaceRoots,
+  enabledWorkspaceRoots,
   setWorkspaceRoot,
-  persistWorkspaceRoot,
   clearWorkspaceHistory,
   historyLabel,
   setLastScannedProjects,
   workspaceConfig,
+  workspaceConfigsByRoot,
+  pushHistory,
 } from "../../stores/workspace.js";
+import {
+  listMergedRunPlans,
+  resolvePlanGraph,
+  validatePlanGraph,
+  NODE_END,
+  NODE_START,
+  saveUserRunPlan,
+  saveWorkspaceRunPlan,
+  deleteUserRunPlan,
+  deleteWorkspaceRunPlan,
+} from "./runPlans.js";
 import { chooseNewWorkspace } from "./useWorkspacePicker.js";
 import { normalizeProjectFilter } from "../settings/projectFilter.js";
 import { resolveHealthNavigation } from "./useWorkspaceHealth.js";
@@ -42,6 +56,7 @@ import {
   closeTab,
   closeTabs,
   setPanel,
+  clearAllTabs,
 } from "../../stores/projectTabs.js";
 import { ingestProcesses, procsFor } from "../../stores/instances.js";
 
@@ -186,13 +201,30 @@ function enqueueLogLine(line) {
 const GROUP_ORDER = ["Node", "Maven", "Gradle", "Cargo"];
 const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+const runPlanEditorOpen = ref(false);
+const runPlanEditorSeed = ref(null);
+/** 正在执行的编排计划；用于停止 */
+const runPlanActive = ref(null);
+const runPlanAbort = ref(false);
+
+function clearWorkbenchProjects() {
+  projects.value = [];
+  selectedPath.value = "";
+  selectedKind.value = "";
+  selectedPid.value = null;
+  logs.value = [];
+  liveDependencies.value = null;
+  lastRunSummaries.value = {};
+  clearAllTabs();
+}
+
 function visibleProjects() {
   const filter = settings.value.projectFilter;
   return projects.value.filter((project) => projectPassesFilter(project, filter));
 }
 
-const grouped = computed(() => {
-  const map = visibleProjects().reduce((out, project) => {
+function kindsForProjects(items) {
+  const map = items.reduce((out, project) => {
     (out[project.group] ||= []).push(project);
     return out;
   }, {});
@@ -203,7 +235,42 @@ const grouped = computed(() => {
       .sort(),
   ];
   return keys.map((group) => ({ group, items: map[group] }));
+}
+
+/** 一级根目录 → 二级 Kind */
+const grouped = computed(() => {
+  const visible = visibleProjects();
+  const roots = enabledWorkspaceRoots.value;
+  if (!roots.length) {
+    return [
+      {
+        rootId: "_",
+        rootLabel: "",
+        rootPath: "",
+        kinds: kindsForProjects(visible),
+        count: visible.length,
+      },
+    ].filter((r) => r.kinds.length);
+  }
+  return roots
+    .map((r) => {
+      const items = visible.filter(
+        (p) => p.rootId === r.id || (!p.rootId && p.rootPath === r.path),
+      );
+      return {
+        rootId: r.id,
+        rootLabel: r.label || historyLabel(r.path),
+        rootPath: r.path,
+        kinds: kindsForProjects(items),
+        count: items.length,
+      };
+    })
+    .filter((r) => r.count > 0 || roots.length === 1);
 });
+
+const mergedRunPlans = computed(() =>
+  listMergedRunPlans(settings.value.runPlans, workspaceConfigsByRoot.value),
+);
 
 const current = computed(() =>
   projects.value.find(
@@ -278,18 +345,33 @@ const refreshGitStatus = refreshWorkspaceGit;
 
 async function applyWorkspaceConfigFromRoot() {
   workspaceConfig.value = null;
-  if (!root.value || previewMode.value) return;
-  try {
-    const loaded = await invoke("load_workspace_config", { root: root.value });
-    workspaceConfig.value = loaded || null;
-    if (loaded?.projectFilter && settings.value.general?.preferWorkspaceConfig !== false) {
-      settings.value = {
-        ...settings.value,
-        projectFilter: normalizeProjectFilter(loaded.projectFilter),
-      };
+  workspaceConfigsByRoot.value = {};
+  if (previewMode.value) return;
+  const roots = enabledWorkspaceRoots.value;
+  if (!roots.length) return;
+  let mergedFilter = null;
+  for (const r of roots) {
+    try {
+      const loaded = await invoke("load_workspace_config", { root: r.path });
+      if (loaded) {
+        workspaceConfigsByRoot.value = {
+          ...workspaceConfigsByRoot.value,
+          [r.path]: loaded,
+        };
+        if (!workspaceConfig.value) workspaceConfig.value = loaded;
+        if (loaded.projectFilter && !mergedFilter) {
+          mergedFilter = loaded.projectFilter;
+        }
+      }
+    } catch (error) {
+      console.error(error);
     }
-  } catch (error) {
-    console.error(error);
+  }
+  if (mergedFilter && settings.value.general?.preferWorkspaceConfig !== false) {
+    settings.value = {
+      ...settings.value,
+      projectFilter: normalizeProjectFilter(mergedFilter),
+    };
   }
 }
 
@@ -302,11 +384,15 @@ async function exportWorkspaceConfig() {
     const config = {
       version: 1,
       projectFilter: settings.value.projectFilter,
-      pipelines: workspaceConfig.value?.pipelines || [],
+      runPlans: workspaceConfig.value?.runPlans || [],
       probes: workspaceConfig.value?.probes || {},
     };
     await invoke("save_workspace_config", { root: root.value, config });
     workspaceConfig.value = config;
+    workspaceConfigsByRoot.value = {
+      ...workspaceConfigsByRoot.value,
+      [root.value]: config,
+    };
     message.success(t("workspaceConfigExported"));
   } catch (error) {
     message.error(String(error));
@@ -544,10 +630,10 @@ function groupMenuItems(items) {
 async function onGroupMenuClick(items, info) {
   const key = String(info.key);
   if (key === "__stop__") {
-    await runGroup(items, "__stop__");
+    await runBatch(items, "__stop__");
     return;
   }
-  await runGroup(items, key);
+  await runBatch(items, key);
 }
 
 async function refreshProcesses() {
@@ -786,16 +872,35 @@ const workspaceHistoryMenu = computed(() => {
 });
 
 async function scan() {
-  if (!root.value) return message.warning(t("needWorkspaceDir"));
+  const roots = enabledWorkspaceRoots.value;
+  if (!roots.length) return message.warning(t("needWorkspaceDir"));
   if (previewMode.value) {
     message.info(t("previewNeedTauri"));
     return;
   }
   loading.value = true;
   try {
-    persistWorkspaceRoot(root.value);
-    projects.value = await invoke("scan_projects", { root: root.value });
-    setLastScannedProjects(projects.value, root.value);
+    for (const r of roots) {
+      pushHistory(r.path);
+    }
+    const merged = [];
+    const seen = new Set();
+    for (const r of roots) {
+      const list = await invoke("scan_projects", { root: r.path });
+      for (const p of list || []) {
+        const key = `${normPath(p.path)}::${p.kind}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push({
+          ...p,
+          rootId: r.id,
+          rootPath: r.path,
+          rootLabel: r.label,
+        });
+      }
+    }
+    projects.value = merged;
+    setLastScannedProjects(merged, roots[0]?.path || "");
     liveDependencies.value = null;
     const first = visibleProjects()[0];
     if (first) selectProject(first);
@@ -893,33 +998,349 @@ async function stopInstance(project, pid) {
   }
 }
 
-async function runGroup(items, action) {
-  const targets = items.filter((p) => {
+function filterBatchTargets(items, action) {
+  return items.filter((p) => {
     if (action === "__stop__") return true;
     if (isMavenProject(p)) return mavenActionsFor(p).includes(action);
     if (p.kind === "cargo" || p.kind === "gradle") {
       return (p.scripts || []).includes(action);
     }
     if (action === "install") return true;
-    return p.scripts.includes(action.replace("script:", ""));
+    return (p.scripts || []).includes(action.replace("script:", ""));
   });
+}
+
+/** 池化并行执行，并发度 = maxParallelSpawns */
+async function runBatch(items, action) {
+  const targets = filterBatchTargets(items, action);
   if (!targets.length) {
     message.warning(t("groupNoTargets"));
     return;
   }
+  const limit = Math.max(1, Number(settings.value.general?.maxParallelSpawns) || 10);
   let ok = 0;
   let fail = 0;
-  for (const project of targets) {
-    const result =
-      action === "__stop__"
-        ? await stop(project, { quiet: true })
-        : await run(project, action, { quiet: true });
-    if (result?.ok) ok += 1;
-    else fail += 1;
+  let done = 0;
+  const total = targets.length;
+  let hide = message.loading(t("batchProgress", { done: 0, total }), 0);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < targets.length) {
+      const i = cursor;
+      cursor += 1;
+      const project = targets[i];
+      const result =
+        action === "__stop__"
+          ? await stop(project, { quiet: true })
+          : await run(project, action, { quiet: true });
+      if (result?.ok) ok += 1;
+      else fail += 1;
+      done += 1;
+      hide();
+      hide = message.loading(t("batchProgress", { done, total }), 0);
+    }
   }
+  const workers = Array.from({ length: Math.min(limit, targets.length) }, () => worker());
+  await Promise.all(workers);
+  hide();
   const label = action === "__stop__" ? t("stopAll") : displayAction(action);
   if (fail === 0) message.success(t("batchDone", { action: label, ok }));
   else message.warning(t("batchPartial", { action: label, ok, fail }));
+}
+
+function openRunPlanEditor(seed = null) {
+  runPlanEditorSeed.value = seed;
+  runPlanEditorOpen.value = true;
+}
+
+/** 等进程退出（前端异步，不阻塞 UI / 不占 Rust wait_for_pid） */
+function waitForRunFinished(projectKey, pid) {
+  return new Promise((resolve) => {
+    let settled = false;
+    let unlisten = null;
+    let timer = null;
+
+    const finish = (code) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearInterval(timer);
+      if (typeof unlisten === "function") unlisten();
+      resolve(code);
+    };
+
+    const checkSummary = () => {
+      if (runPlanAbort.value) {
+        finish(null);
+        return;
+      }
+      const summary = lastRunSummaries.value[projectKey];
+      if (summary && summary.pid === pid) {
+        finish(summary.exitCode ?? summary.exit_code ?? null);
+      }
+    };
+
+    listen("run-finished", (event) => {
+      const summary = event.payload;
+      if (!summary) return;
+      if (summary.projectKey !== projectKey) return;
+      if (summary.pid != null && summary.pid !== pid) return;
+      finish(summary.exitCode ?? summary.exit_code ?? null);
+    }).then((fn) => {
+      unlisten = fn;
+      checkSummary();
+    });
+
+    timer = window.setInterval(checkSummary, 400);
+  });
+}
+
+function yieldToUi() {
+  return new Promise((r) => setTimeout(r, 0));
+}
+
+/**
+ * 编排后台执行：invoke 只负责启动；wait=complete 用 run-finished 等待。
+ * 不 await 整条流水线在 UI 点击路径上，避免界面假死。
+ */
+async function executeRunPlan(plan) {
+  if (runPlanActive.value) {
+    message.warning(t("runPlanAlreadyRunning"));
+    return;
+  }
+  const check = validatePlanGraph(plan?.nodes, plan?.edges);
+  if (!check.ok) {
+    message.warning(t("runPlanInvalidGraph"));
+    return;
+  }
+
+  const { steps, outs, ins } = resolvePlanGraph(
+    plan,
+    projects.value,
+    enabledWorkspaceRoots.value,
+  );
+  if (!steps.size) {
+    message.warning(t("groupNoTargets"));
+    return;
+  }
+
+  const planProjects = [];
+  const seen = new Set();
+  for (const { project } of steps.values()) {
+    const key = makeProjectKey(project.path, project.kind);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    planProjects.push(project);
+  }
+
+  runPlanAbort.value = false;
+  runPlanActive.value = {
+    id: plan.id,
+    name: plan.name,
+    projects: planProjects,
+  };
+
+  // 立即切到工作台，后续调度在后台跑
+  const { goWorkbench } = await import("../../stores/appNav.js");
+  goWorkbench();
+  activeTab.value = "logs";
+  if (planProjects[0]) selectProject(planProjects[0]);
+
+  void runPlanScheduler(plan, steps, outs, ins);
+}
+
+async function runPlanScheduler(plan, steps, outs, ins) {
+  const limit = Math.max(1, Number(settings.value.general?.maxParallelSpawns) || 10);
+  const done = new Set([NODE_START]);
+  const running = new Set();
+  let ok = 0;
+  let fail = 0;
+  let aborted = false;
+  let hideLoading = message.loading(
+    t("batchProgress", { done: 0, total: steps.size }),
+    0,
+  );
+
+  function predecessorsReady(id) {
+    return (ins.get(id) || []).every((p) => done.has(p));
+  }
+
+  function bumpProgress() {
+    hideLoading();
+    hideLoading = message.loading(
+      t("batchProgress", { done: ok + fail, total: steps.size }),
+      0,
+    );
+  }
+
+  async function runStepNode(nodeId) {
+    if (runPlanAbort.value) return false;
+    const entry = steps.get(nodeId);
+    if (!entry) return true;
+    const { node, project } = entry;
+    selectProject(project);
+    await yieldToUi();
+    try {
+      const view = await invoke("run_action", {
+        path: normPath(project.path),
+        action: node.action,
+        kind: project.kind,
+      });
+      if (runPlanAbort.value) return false;
+      recordRecentAction(project, node.action);
+      if (node.wait === "complete" && view?.pid != null) {
+        const projectKey = makeProjectKey(normPath(project.path), project.kind);
+        const code = await waitForRunFinished(projectKey, view.pid);
+        if (runPlanAbort.value) return false;
+        if (code !== 0) {
+          message.error(`${project.name}：exit ${code ?? "?"}`);
+          return false;
+        }
+      }
+      return true;
+    } catch (error) {
+      if (runPlanAbort.value) return false;
+      message.error(`${project.name}：${String(error)}`);
+      return false;
+    }
+  }
+
+  try {
+    while (!runPlanAbort.value) {
+      if (predecessorsReady(NODE_END) && running.size === 0) {
+        const allStepsDone = [...steps.keys()].every((id) => done.has(id));
+        if (allStepsDone || (ins.get(NODE_END) || []).every((p) => done.has(p))) {
+          done.add(NODE_END);
+          break;
+        }
+      }
+
+      const ready = [];
+      for (const [id] of steps) {
+        if (done.has(id) || running.has(id)) continue;
+        if (predecessorsReady(id)) ready.push(id);
+      }
+
+      if (!ready.length) {
+        if (running.size === 0) {
+          if (predecessorsReady(NODE_END)) {
+            done.add(NODE_END);
+            break;
+          }
+          aborted = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 80));
+        continue;
+      }
+
+      const slots = Math.max(1, limit - running.size);
+      const batch = ready.slice(0, slots);
+
+      // 并行启动本批，不阻塞 UI 事件循环
+      await Promise.all(
+        batch.map(async (id) => {
+          running.add(id);
+          try {
+            const fine = await runStepNode(id);
+            if (fine) ok += 1;
+            else {
+              fail += 1;
+              if (plan.stopOnError !== false) runPlanAbort.value = true;
+            }
+          } finally {
+            running.delete(id);
+            done.add(id);
+            for (const child of outs.get(id) || []) {
+              if (child === NODE_END && predecessorsReady(NODE_END)) done.add(NODE_END);
+            }
+            bumpProgress();
+          }
+        }),
+      );
+      await yieldToUi();
+    }
+    if (runPlanAbort.value) aborted = true;
+  } finally {
+    hideLoading();
+    runPlanActive.value = null;
+    runPlanAbort.value = false;
+    void refreshProcesses();
+  }
+
+  if (aborted) message.info(t("runPlanStopped", { name: plan.name }));
+  else if (fail === 0) message.success(t("batchDone", { action: plan.name, ok }));
+  else message.warning(t("batchPartial", { action: plan.name, ok, fail }));
+}
+
+async function stopRunPlan() {
+  const active = runPlanActive.value;
+  if (!active) {
+    message.info(t("runPlanNotRunning"));
+    return;
+  }
+  runPlanAbort.value = true;
+  const targets = active.projects || [];
+  await Promise.all(
+    targets.map(async (project) => {
+      try {
+        await invoke("stop_project", {
+          path: normPath(project.path),
+          kind: project.kind,
+        });
+      } catch {
+        /* ignore */
+      }
+    }),
+  );
+  await refreshProcesses();
+}
+
+async function persistRunPlanUser(plan) {
+  const { schedulePersistSettings } = await import("../../stores/settings.js");
+  await saveUserRunPlan(settings, plan, () => schedulePersistSettings());
+  message.success(t("runPlanSaved"));
+}
+
+async function persistRunPlanWorkspace(plan) {
+  const rootPath = plan.rootPath || root.value;
+  if (!rootPath) {
+    message.warning(t("needWorkspaceDir"));
+    return;
+  }
+  const existing = workspaceConfigsByRoot.value[rootPath] || workspaceConfig.value;
+  const { config } = await saveWorkspaceRunPlan(rootPath, plan, existing);
+  workspaceConfig.value = config;
+  workspaceConfigsByRoot.value = {
+    ...workspaceConfigsByRoot.value,
+    [rootPath]: config,
+  };
+  message.success(t("runPlanSaved"));
+}
+
+async function deleteRunPlan(plan) {
+  if (!plan?.id) return;
+  if (runPlanActive.value?.id === plan.id) {
+    message.warning(t("runPlanDeleteWhileRunning"));
+    return;
+  }
+  if (plan.source === "workspace") {
+    const rootPath = plan.rootPath || root.value;
+    if (!rootPath) {
+      message.warning(t("needWorkspaceDir"));
+      return;
+    }
+    const existing = workspaceConfigsByRoot.value[rootPath] || workspaceConfig.value;
+    const config = await deleteWorkspaceRunPlan(rootPath, plan.id, existing);
+    workspaceConfig.value = config;
+    workspaceConfigsByRoot.value = {
+      ...workspaceConfigsByRoot.value,
+      [rootPath]: config,
+    };
+  } else {
+    const { schedulePersistSettings } = await import("../../stores/settings.js");
+    await deleteUserRunPlan(settings, plan.id, () => schedulePersistSettings());
+  }
+  message.success(t("runPlanDeleted"));
 }
 
 async function clearLogs() {
@@ -1020,7 +1441,11 @@ onMounted(async () => {
 });
 
 watch(workspaceOpenTick, async () => {
-  if (!root.value || previewMode.value) return;
+  if (previewMode.value) return;
+  if (!enabledWorkspaceRoots.value.length) {
+    clearWorkbenchProjects();
+    return;
+  }
   await scan();
 });
 
@@ -1048,6 +1473,19 @@ onBeforeUnmount(() => {
     grouped,
     selectedPath,
     selectedKind,
+    runBatch,
+    runPlanEditorOpen,
+    runPlanEditorSeed,
+    openRunPlanEditor,
+    executeRunPlan,
+    stopRunPlan,
+    deleteRunPlan,
+    runPlanActive,
+    persistRunPlanUser,
+    persistRunPlanWorkspace,
+    mergedRunPlans,
+    enabledWorkspaceRoots,
+    workspaceRoots,
     projectProcs,
     groupMenuItems,
     onGroupMenuClick,
